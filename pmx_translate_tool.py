@@ -1,0 +1,1181 @@
+#!/usr/bin/env python3
+"""PMX name translation helper for PMX Editor workflows.
+
+This tool rewrites PMX text fields while preserving all geometry, physics and
+binary data. It is intentionally dependency-free so it can run on a stock
+Windows Python install.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import struct
+import sys
+import threading
+import unicodedata
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable, Iterable
+
+
+LANG_EN = "en"
+LANG_VI = "vi"
+DEFAULT_CACHE_PATH = Path(__file__).with_name("translation_cache.json")
+
+
+COMMON_TRANSLATIONS_EN = {
+    "センター": "center",
+    "中心": "center",
+    "全ての親": "motherbone",
+    "全親": "motherbone",
+    "上半身": "upper body",
+    "上半身2": "upper body 2",
+    "下半身": "lower body",
+    "首": "neck",
+    "頭": "head",
+    "頭部": "head",
+    "髪": "hair",
+    "前髪": "front hair",
+    "後髪": "back hair",
+    "横髪": "side hair",
+    "右": "right",
+    "左": "left",
+    "腕": "arm",
+    "ひじ": "elbow",
+    "肘": "elbow",
+    "手首": "wrist",
+    "手": "hand",
+    "指": "finger",
+    "親指": "thumb",
+    "人指": "index finger",
+    "人差指": "index finger",
+    "中指": "middle finger",
+    "薬指": "ring finger",
+    "小指": "little finger",
+    "足": "leg",
+    "ひざ": "knee",
+    "膝": "knee",
+    "足首": "ankle",
+    "つま先": "toe",
+    "目": "eye",
+    "眉": "eyebrow",
+    "口": "mouth",
+    "舌": "tongue",
+    "歯": "teeth",
+    "笑い": "smile",
+    "笑顔": "smile",
+    "怒り": "angry",
+    "悲しみ": "sad",
+    "照れ": "shy",
+    "まばたき": "blink",
+    "ウィンク": "wink",
+    "あ": "a",
+    "い": "i",
+    "う": "u",
+    "え": "e",
+    "お": "o",
+    "材質": "material",
+    "肌": "skin",
+    "顔": "face",
+    "服": "clothes",
+    "スカート": "skirt",
+    "靴": "shoes",
+    "リボン": "ribbon",
+    "影": "shadow",
+    "地面": "ground",
+    "床": "floor",
+    "壁": "wall",
+    "天井": "ceiling",
+    "空": "sky",
+    "背景": "background",
+    "ステージ": "stage",
+    "ライト": "light",
+    "照明": "light",
+    "ガラス": "glass",
+    "窓": "window",
+    "扉": "door",
+    "ドア": "door",
+    "柱": "pillar",
+    "階段": "stairs",
+    "水": "water",
+    "木": "tree",
+    "草": "grass",
+    "花": "flower",
+    "表示枠": "display frame",
+    "剛体": "rigid body",
+    "ジョイント": "joint",
+    "ボーン": "bone",
+    "モーフ": "morph",
+    "テクスチャ": "texture",
+}
+
+COMMON_TRANSLATIONS_VI = {
+    "center": "trung tam",
+    "motherbone": "xuong goc",
+    "upper body": "than tren",
+    "upper body 2": "than tren 2",
+    "lower body": "than duoi",
+    "neck": "co",
+    "head": "dau",
+    "hair": "toc",
+    "front hair": "toc truoc",
+    "back hair": "toc sau",
+    "side hair": "toc ben",
+    "right": "phai",
+    "left": "trai",
+    "arm": "tay",
+    "elbow": "khuyu tay",
+    "wrist": "co tay",
+    "hand": "ban tay",
+    "finger": "ngon tay",
+    "thumb": "ngon cai",
+    "index finger": "ngon tro",
+    "middle finger": "ngon giua",
+    "ring finger": "ngon ap ut",
+    "little finger": "ngon ut",
+    "leg": "chan",
+    "knee": "dau goi",
+    "ankle": "co chan",
+    "toe": "ngon chan",
+    "eye": "mat",
+    "eyebrow": "long may",
+    "mouth": "mieng",
+    "tongue": "luoi",
+    "teeth": "rang",
+    "smile": "cuoi",
+    "angry": "gian",
+    "sad": "buon",
+    "shy": "xau ho",
+    "blink": "nham mat",
+    "wink": "nhay mat",
+    "material": "vat lieu",
+    "skin": "da",
+    "face": "mat",
+    "clothes": "quan ao",
+    "skirt": "vay",
+    "shoes": "giay",
+    "ribbon": "no",
+    "shadow": "bong",
+    "ground": "mat dat",
+    "floor": "san",
+    "wall": "tuong",
+    "ceiling": "tran",
+    "sky": "troi",
+    "background": "nen",
+    "stage": "san khau",
+    "light": "den",
+    "glass": "kinh",
+    "window": "cua so",
+    "door": "cua",
+    "pillar": "cot",
+    "stairs": "cau thang",
+    "water": "nuoc",
+    "tree": "cay",
+    "grass": "co",
+    "flower": "hoa",
+    "display frame": "khung hien thi",
+    "rigid body": "vat ly",
+    "joint": "khop noi",
+    "bone": "xuong",
+    "morph": "morph",
+    "texture": "texture",
+}
+
+COMMON_TRANSLATIONS_VI.update(
+    {
+        "curbstone": "da via",
+        "curb stone": "da via",
+        "bridge": "cau",
+        "bridge deck": "mat cau",
+        "bridge deck ornament": "hoa tiet mat cau",
+        "bridge stone pillar": "cot da cau",
+        "bridge stone curb": "vien da cau",
+        "bridge stone steps": "bac da cau",
+        "bridge stone lion": "su tu da cau",
+        "stone": "da",
+        "stone pillar": "cot da",
+        "stone carving": "tuong da",
+        "curb": "vien",
+        "steps": "bac thang",
+        "lion": "su tu",
+        "ornament": "hoa tiet",
+        "carving": "cham khac",
+    }
+)
+
+
+SECTION_LABELS = {
+    "model": "Model info",
+    "texture": "Textures",
+    "material": "Materials",
+    "bone": "Bones",
+    "morph": "Morphs",
+    "display": "Display frames",
+    "rigid_body": "Rigid bodies",
+    "joint": "Joints",
+    "soft_body": "Soft bodies",
+}
+
+TRANSLATABLE_SECTIONS = {
+    "material",
+    "bone",
+    "morph",
+    "display",
+    "rigid_body",
+    "joint",
+    "soft_body",
+}
+
+SECTION_FILTER_LABELS = {
+    "material": "Objects/Materials",
+    "bone": "Bones",
+    "morph": "Morphs",
+    "display": "Display",
+    "rigid_body": "Rigid bodies",
+    "joint": "Joints",
+    "soft_body": "Soft bodies",
+}
+
+
+@dataclass
+class TextEntry:
+    id: int
+    section: str
+    index: int
+    field: str
+    offset: int
+    byte_length: int
+    encoding: str
+    value: str
+
+    @property
+    def raw_start(self) -> int:
+        return self.offset + 4
+
+    @property
+    def raw_end(self) -> int:
+        return self.raw_start + self.byte_length
+
+    @property
+    def label(self) -> str:
+        label = SECTION_LABELS.get(self.section, self.section)
+        if self.index >= 0:
+            return f"{label} #{self.index}"
+        return label
+
+
+class PmxFormatError(RuntimeError):
+    pass
+
+
+class PmxReader:
+    def __init__(self, data: bytes):
+        self.data = data
+        self.pos = 0
+        self.entries: list[TextEntry] = []
+        self.text_encoding = "utf-16-le"
+        self.vertex_index_size = 4
+        self.texture_index_size = 4
+        self.material_index_size = 4
+        self.bone_index_size = 4
+        self.morph_index_size = 4
+        self.rigid_body_index_size = 4
+        self.additional_uv_count = 0
+        self.version = 0.0
+
+    def parse(self) -> list[TextEntry]:
+        self._parse_header()
+        self._read_text("model", -1, "local_name")
+        self._read_text("model", -1, "universal_name")
+        self._read_text("model", -1, "local_comment")
+        self._read_text("model", -1, "universal_comment")
+        self._parse_vertices()
+        self._parse_faces()
+        self._parse_textures()
+        self._parse_materials()
+        self._parse_bones()
+        self._parse_morphs()
+        self._parse_display_frames()
+        self._parse_rigid_bodies()
+        self._parse_joints()
+        self._parse_soft_bodies_if_present()
+        return self.entries
+
+    def _need(self, size: int) -> None:
+        if self.pos + size > len(self.data):
+            raise PmxFormatError(f"Unexpected end of file at byte {self.pos}.")
+
+    def _read(self, size: int) -> bytes:
+        self._need(size)
+        chunk = self.data[self.pos : self.pos + size]
+        self.pos += size
+        return chunk
+
+    def _skip(self, size: int) -> None:
+        self._need(size)
+        self.pos += size
+
+    def _u8(self) -> int:
+        return self._read(1)[0]
+
+    def _i32(self) -> int:
+        return struct.unpack_from("<i", self._read(4))[0]
+
+    def _parse_header(self) -> None:
+        magic = self._read(4)
+        if magic != b"PMX ":
+            raise PmxFormatError("This is not a PMX file.")
+        self.version = struct.unpack_from("<f", self._read(4))[0]
+        setting_count = self._u8()
+        settings = self._read(setting_count)
+        if setting_count < 8:
+            raise PmxFormatError("PMX header is missing global settings.")
+        self.text_encoding = "utf-16-le" if settings[0] == 0 else "utf-8"
+        self.additional_uv_count = settings[1]
+        self.vertex_index_size = settings[2]
+        self.texture_index_size = settings[3]
+        self.material_index_size = settings[4]
+        self.bone_index_size = settings[5]
+        self.morph_index_size = settings[6]
+        self.rigid_body_index_size = settings[7]
+
+    def _read_text(self, section: str, index: int, field: str) -> str:
+        offset = self.pos
+        byte_length = self._i32()
+        if byte_length < 0:
+            raise PmxFormatError(f"Negative string length at byte {offset}.")
+        raw = self._read(byte_length)
+        try:
+            value = raw.decode(self.text_encoding)
+        except UnicodeDecodeError:
+            value = raw.decode(self.text_encoding, errors="replace")
+        self.entries.append(
+            TextEntry(
+                id=len(self.entries),
+                section=section,
+                index=index,
+                field=field,
+                offset=offset,
+                byte_length=byte_length,
+                encoding=self.text_encoding,
+                value=value,
+            )
+        )
+        return value
+
+    def _idx(self, size: int) -> None:
+        self._skip(size)
+
+    def _parse_vertices(self) -> None:
+        count = self._i32()
+        for _ in range(count):
+            self._skip(12 + 12 + 8 + self.additional_uv_count * 16)
+            deform = self._u8()
+            if deform == 0:
+                self._idx(self.bone_index_size)
+            elif deform == 1:
+                self._idx(self.bone_index_size)
+                self._idx(self.bone_index_size)
+                self._skip(4)
+            elif deform == 2:
+                self._skip(self.bone_index_size * 4 + 16)
+            elif deform == 3:
+                self._skip(self.bone_index_size * 2 + 4 + 36)
+            elif deform == 4:
+                self._skip(self.bone_index_size * 4 + 16)
+            else:
+                raise PmxFormatError(f"Unsupported vertex deform type {deform}.")
+            self._skip(4)
+
+    def _parse_faces(self) -> None:
+        count = self._i32()
+        self._skip(count * self.vertex_index_size)
+
+    def _parse_textures(self) -> None:
+        count = self._i32()
+        for index in range(count):
+            self._read_text("texture", index, "path")
+
+    def _parse_materials(self) -> None:
+        count = self._i32()
+        for index in range(count):
+            self._read_text("material", index, "local_name")
+            self._read_text("material", index, "universal_name")
+            self._skip(4 * 4 + 3 * 4 + 4 + 3 * 4 + 1 + 4 * 4 + 4)
+            self._idx(self.texture_index_size)
+            self._idx(self.texture_index_size)
+            self._skip(1)
+            toon_flag = self._u8()
+            if toon_flag == 0:
+                self._idx(self.texture_index_size)
+            else:
+                self._skip(1)
+            self._read_text("material", index, "memo")
+            self._skip(4)
+
+    def _parse_bones(self) -> None:
+        count = self._i32()
+        for index in range(count):
+            self._read_text("bone", index, "local_name")
+            self._read_text("bone", index, "universal_name")
+            self._skip(12)
+            self._idx(self.bone_index_size)
+            self._skip(4)
+            flags = struct.unpack_from("<H", self._read(2))[0]
+            if flags & 0x0001:
+                self._idx(self.bone_index_size)
+            else:
+                self._skip(12)
+            if flags & 0x0100 or flags & 0x0200:
+                self._idx(self.bone_index_size)
+                self._skip(4)
+            if flags & 0x0400:
+                self._skip(12)
+            if flags & 0x0800:
+                self._skip(24)
+            if flags & 0x2000:
+                self._skip(4)
+            if flags & 0x0020:
+                self._idx(self.bone_index_size)
+                self._skip(4 + 4)
+                link_count = self._i32()
+                for _ in range(link_count):
+                    self._idx(self.bone_index_size)
+                    has_limit = self._u8()
+                    if has_limit:
+                        self._skip(24)
+
+    def _parse_morphs(self) -> None:
+        count = self._i32()
+        for index in range(count):
+            self._read_text("morph", index, "local_name")
+            self._read_text("morph", index, "universal_name")
+            self._skip(1)
+            morph_type = self._u8()
+            offset_count = self._i32()
+            for _ in range(offset_count):
+                if morph_type == 0:
+                    self._skip(self.morph_index_size + 4)
+                elif morph_type == 1:
+                    self._skip(self.vertex_index_size + 12)
+                elif morph_type == 2:
+                    self._skip(self.bone_index_size + 12 + 16)
+                elif 3 <= morph_type <= 7:
+                    self._skip(self.vertex_index_size + 16)
+                elif morph_type == 8:
+                    self._skip(self.material_index_size + 1 + 4 * (4 + 4 + 3 + 4 + 1 + 4 + 4 + 4))
+                elif morph_type == 9:
+                    self._skip(self.morph_index_size + 4)
+                elif morph_type == 10:
+                    self._skip(self.rigid_body_index_size + 1 + 12 + 12)
+                else:
+                    raise PmxFormatError(f"Unsupported morph type {morph_type}.")
+
+    def _parse_display_frames(self) -> None:
+        count = self._i32()
+        for index in range(count):
+            self._read_text("display", index, "local_name")
+            self._read_text("display", index, "universal_name")
+            self._skip(1)
+            item_count = self._i32()
+            for _ in range(item_count):
+                item_type = self._u8()
+                if item_type == 0:
+                    self._idx(self.bone_index_size)
+                elif item_type == 1:
+                    self._idx(self.morph_index_size)
+                else:
+                    raise PmxFormatError(f"Unsupported display frame item type {item_type}.")
+
+    def _parse_rigid_bodies(self) -> None:
+        count = self._i32()
+        for index in range(count):
+            self._read_text("rigid_body", index, "local_name")
+            self._read_text("rigid_body", index, "universal_name")
+            self._skip(self.bone_index_size + 1 + 2 + 1 + 12 + 12 + 12 + 4 * 5 + 1)
+
+    def _parse_joints(self) -> None:
+        count = self._i32()
+        for index in range(count):
+            self._read_text("joint", index, "local_name")
+            self._read_text("joint", index, "universal_name")
+            self._skip(1 + self.rigid_body_index_size * 2 + 12 + 12 + 12 + 12 + 12 + 12 + 12 + 12)
+
+    def _parse_soft_bodies_if_present(self) -> None:
+        if self.pos >= len(self.data):
+            return
+        start = self.pos
+        try:
+            count = self._i32()
+            if count < 0 or count > 100000:
+                self.pos = start
+                return
+            for index in range(count):
+                self._read_text("soft_body", index, "local_name")
+                self._read_text("soft_body", index, "universal_name")
+                # PMX 2.1 soft-body records are large and rarely used for name
+                # translation. Stop after collecting names to avoid corrupting
+                # offsets in unknown vendor extensions.
+                break
+        except PmxFormatError:
+            self.pos = start
+
+
+def parse_pmx(data: bytes) -> list[TextEntry]:
+    return PmxReader(data).parse()
+
+
+def write_replacements(data: bytes, entries: list[TextEntry], replacements: dict[int, str]) -> bytes:
+    chunks: list[bytes] = []
+    cursor = 0
+    for entry in sorted(entries, key=lambda item: item.offset):
+        if entry.id not in replacements:
+            continue
+        new_value = replacements[entry.id]
+        encoded = new_value.encode(entry.encoding)
+        chunks.append(data[cursor : entry.offset])
+        chunks.append(struct.pack("<i", len(encoded)))
+        chunks.append(encoded)
+        cursor = entry.raw_end
+    chunks.append(data[cursor:])
+    return b"".join(chunks)
+
+
+def strip_vietnamese_accents(text: str) -> str:
+    text = text.replace("\u0111", "d").replace("\u0110", "D")
+    normalized = unicodedata.normalize("NFD", text)
+    return "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+
+
+def has_cjk(text: str) -> bool:
+    return bool(re.search(r"[\u3040-\u30ff\u3400-\u9fff]", text))
+
+
+def normalize_ascii_spacing(text: str) -> str:
+    text = unicodedata.normalize("NFKC", text)
+    text = re.sub(r"[_\-]+", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _longest_dictionary_translate(text: str, dictionary: dict[str, str]) -> str:
+    if not text:
+        return text
+    keys = sorted(dictionary, key=len, reverse=True)
+    result: list[str] = []
+    pos = 0
+    while pos < len(text):
+        matched = False
+        for key in keys:
+            if text.startswith(key, pos):
+                result.append(" " + dictionary[key] + " ")
+                pos += len(key)
+                matched = True
+                break
+        if not matched:
+            result.append(text[pos])
+            pos += 1
+    return "".join(result)
+
+
+def translate_name(text: str, language: str) -> str:
+    text = normalize_ascii_spacing(text)
+    translated = _longest_dictionary_translate(text, COMMON_TRANSLATIONS_EN)
+    translated = normalize_ascii_spacing(translated)
+    translated_lower = translated.lower()
+
+    if language == LANG_VI:
+        translated_lower = _longest_dictionary_translate(translated_lower, COMMON_TRANSLATIONS_VI)
+        translated_lower = strip_vietnamese_accents(translated_lower)
+
+    translated_lower = normalize_ascii_spacing(translated_lower)
+    translated_lower = re.sub(r"\s+([0-9]+)$", r" \1", translated_lower)
+    return translated_lower or text
+
+
+def clean_machine_translation(text: str, language: str) -> str:
+    text = normalize_ascii_spacing(text)
+    text = text.strip(" '\"\t\r\n")
+    text = re.sub(r"\s+([0-9]+)$", r" \1", text)
+    text = text.lower()
+    if language == LANG_VI:
+        text = strip_vietnamese_accents(text)
+    return normalize_ascii_spacing(text)
+
+
+def load_translation_cache(path: Path | None = None) -> dict[str, str]:
+    cache_path = path or DEFAULT_CACHE_PATH
+    if not cache_path.exists():
+        return {}
+    try:
+        raw = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    return {str(key): str(value) for key, value in raw.items()}
+
+
+def save_translation_cache(cache: dict[str, str], path: Path | None = None) -> None:
+    cache_path = path or DEFAULT_CACHE_PATH
+    cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def machine_translate_text(
+    text: str,
+    language: str,
+    source_language: str = "auto",
+    cache: dict[str, str] | None = None,
+    timeout: float = 10.0,
+) -> str:
+    normalized = normalize_ascii_spacing(text)
+    if not normalized:
+        return normalized
+    cache_key = f"google|{source_language}|{language}|{normalized}"
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
+
+    params = urllib.parse.urlencode(
+        {
+            "client": "gtx",
+            "sl": source_language,
+            "tl": language,
+            "dt": "t",
+            "q": normalized,
+        }
+    )
+    url = "https://translate.googleapis.com/translate_a/single?" + params
+    request = urllib.request.Request(url, headers={"User-Agent": "PMX-Translate-Editor/1.0"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+
+    translated = ""
+    if payload and isinstance(payload[0], list):
+        translated = "".join(part[0] for part in payload[0] if part and part[0])
+    translated = clean_machine_translation(translated, language)
+    if cache is not None and translated:
+        cache[cache_key] = translated
+    return translated
+
+
+def translate_name_with_optional_online(
+    text: str,
+    language: str,
+    online_fallback: bool = False,
+    source_language: str = "auto",
+    cache: dict[str, str] | None = None,
+) -> str:
+    translated = translate_name(text, language)
+    if not online_fallback or not has_cjk(translated):
+        return translated
+    try:
+        machine = machine_translate_text(text, language, source_language=source_language, cache=cache)
+    except Exception:
+        return translated
+    return machine or translated
+
+
+def should_translate_entry(
+    entry: TextEntry,
+    include_comments: bool,
+    overwrite_local: bool,
+    translate_sections: set[str] | None = None,
+) -> bool:
+    if entry.section == "model":
+        return False
+    if translate_sections is not None and entry.section not in translate_sections:
+        return False
+    if "comment" in entry.field:
+        return include_comments
+    if entry.section == "texture":
+        return False
+    if entry.field == "local_name" and not overwrite_local:
+        return False
+    if entry.field in {"memo", "path"}:
+        return False
+    return True
+
+
+def default_source_for_entry(entry: TextEntry, all_entries: list[TextEntry]) -> str:
+    if entry.value.strip():
+        return entry.value
+    if entry.field != "universal_name":
+        return entry.value
+    for other in all_entries:
+        if (
+            other.section == entry.section
+            and other.index == entry.index
+            and other.field == "local_name"
+            and other.value.strip()
+        ):
+            return other.value
+    return entry.value
+
+
+def build_auto_replacements(
+    entries: list[TextEntry],
+    language: str,
+    include_comments: bool = False,
+    overwrite_local: bool = False,
+    only_empty: bool = False,
+    online_fallback: bool = False,
+    source_language: str = "auto",
+    cache: dict[str, str] | None = None,
+    translate_sections: set[str] | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> dict[int, str]:
+    replacements: dict[int, str] = {}
+    candidates = [
+        entry
+        for entry in entries
+        if should_translate_entry(entry, include_comments, overwrite_local, translate_sections)
+        and not (only_empty and entry.value.strip())
+    ]
+    translated_sources: dict[str, str] = {}
+    total = len(candidates)
+
+    for index, entry in enumerate(candidates, start=1):
+        source = default_source_for_entry(entry, entries)
+        if source in translated_sources:
+            translated = translated_sources[source]
+        else:
+            translated = translate_name_with_optional_online(
+                source,
+                language,
+                online_fallback=online_fallback,
+                source_language=source_language,
+                cache=cache,
+            )
+            translated_sources[source] = translated
+        if translated != entry.value:
+            replacements[entry.id] = translated
+        if progress_callback is not None:
+            progress_callback(index, total)
+    return replacements
+
+
+def count_untranslated_cjk(replacements: dict[int, str]) -> int:
+    return sum(1 for value in replacements.values() if has_cjk(value))
+
+
+def parse_section_filter(value: str | None) -> set[str] | None:
+    if value is None or not value.strip() or value.strip().lower() == "all":
+        return None
+    aliases = {
+        "object": "material",
+        "objects": "material",
+        "materials": "material",
+        "material": "material",
+        "bone": "bone",
+        "bones": "bone",
+        "morph": "morph",
+        "morphs": "morph",
+        "display": "display",
+        "frames": "display",
+        "rigid": "rigid_body",
+        "rigid_body": "rigid_body",
+        "rigid_bodies": "rigid_body",
+        "physics": "rigid_body",
+        "joint": "joint",
+        "joints": "joint",
+        "soft": "soft_body",
+        "soft_body": "soft_body",
+        "soft_bodies": "soft_body",
+    }
+    selected: set[str] = set()
+    invalid: list[str] = []
+    for part in re.split(r"[,; ]+", value.strip().lower()):
+        if not part:
+            continue
+        section = aliases.get(part)
+        if section is None:
+            invalid.append(part)
+        else:
+            selected.add(section)
+    if invalid:
+        valid = ", ".join(sorted(aliases))
+        raise ValueError(f"Unknown section(s): {', '.join(invalid)}. Valid values: all, {valid}")
+    return selected or None
+
+
+def run_cli(args: argparse.Namespace) -> int:
+    input_path = Path(args.input)
+    data = input_path.read_bytes()
+    entries = parse_pmx(data)
+    cache_path = Path(args.cache) if args.cache else DEFAULT_CACHE_PATH
+    cache = load_translation_cache(cache_path) if args.online else None
+    translate_sections = parse_section_filter(args.sections)
+    replacements = build_auto_replacements(
+        entries,
+        args.language,
+        include_comments=False,
+        overwrite_local=args.overwrite_local,
+        only_empty=args.only_empty,
+        online_fallback=args.online,
+        source_language=args.source_language,
+        cache=cache,
+        translate_sections=translate_sections,
+    )
+    if cache is not None:
+        save_translation_cache(cache, cache_path)
+    if args.dry_run:
+        for entry in entries:
+            if entry.id in replacements:
+                print(f"{entry.label} {entry.field}: {entry.value!r} -> {replacements[entry.id]!r}")
+        print(f"{len(replacements)} field(s) would be changed.")
+        remaining = count_untranslated_cjk(replacements)
+        if remaining:
+            print(f"{remaining} translated field(s) still contain CJK characters and need manual review.")
+        return 0
+
+    output_path = Path(args.output) if args.output else input_path.with_name(input_path.stem + f".{args.language}.pmx")
+    output_path.write_bytes(write_replacements(data, entries, replacements))
+    print(f"Wrote {output_path}")
+    print(f"Changed {len(replacements)} field(s).")
+    return 0
+
+
+class PmxTranslatorApp:
+    def __init__(self) -> None:
+        import tkinter as tk
+        from tkinter import ttk
+
+        self.tk = tk
+        self.ttk = ttk
+        self.root = tk.Tk()
+        self.root.title("PMX Translate Editor")
+        self.root.geometry("1080x680")
+        self.data: bytes | None = None
+        self.entries: list[TextEntry] = []
+        self.replacements: dict[int, str] = {}
+        self.path: Path | None = None
+        self.selected_id: int | None = None
+        self.is_translating = False
+
+        self.language_var = tk.StringVar(value=LANG_EN)
+        self.overwrite_local_var = tk.BooleanVar(value=False)
+        self.only_empty_var = tk.BooleanVar(value=False)
+        self.online_fallback_var = tk.BooleanVar(value=False)
+        self.section_vars = {
+            section: tk.BooleanVar(value=section in {"material", "bone", "morph"})
+            for section in TRANSLATABLE_SECTIONS
+        }
+        self.status_var = tk.StringVar(value="Open a PMX file to start.")
+        self.original_var = tk.StringVar(value="")
+        self.new_value_var = tk.StringVar(value="")
+
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        tk = self.tk
+        ttk = self.ttk
+
+        root = self.root
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(2, weight=1)
+
+        toolbar = ttk.Frame(root, padding=8)
+        toolbar.grid(row=0, column=0, sticky="ew")
+        toolbar.columnconfigure(9, weight=1)
+
+        self.open_button = ttk.Button(toolbar, text="Open PMX", command=self.open_file)
+        self.open_button.grid(row=0, column=0, padx=(0, 6))
+        ttk.Label(toolbar, text="Target").grid(row=0, column=1, padx=(0, 4))
+        lang = ttk.Combobox(toolbar, textvariable=self.language_var, state="readonly", width=22)
+        lang["values"] = (LANG_EN, LANG_VI)
+        lang.grid(row=0, column=2, padx=(0, 8))
+        ttk.Checkbutton(toolbar, text="Overwrite local names", variable=self.overwrite_local_var).grid(
+            row=0, column=3, padx=(0, 8)
+        )
+        ttk.Checkbutton(toolbar, text="Only empty fields", variable=self.only_empty_var).grid(
+            row=0, column=4, padx=(0, 8)
+        )
+        ttk.Checkbutton(toolbar, text="Online fallback", variable=self.online_fallback_var).grid(
+            row=0, column=5, padx=(0, 8)
+        )
+        self.auto_button = ttk.Button(toolbar, text="Auto Translate", command=self.auto_translate)
+        self.auto_button.grid(row=0, column=6, padx=(0, 6))
+        self.clear_button = ttk.Button(toolbar, text="Clear Changes", command=self.clear_changes)
+        self.clear_button.grid(row=0, column=7, padx=(0, 6))
+        self.save_button = ttk.Button(toolbar, text="Save As", command=self.save_as)
+        self.save_button.grid(row=0, column=8, padx=(0, 6))
+
+        filters = ttk.LabelFrame(root, text="Translate sections", padding=(8, 4, 8, 8))
+        filters.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 8))
+        for col, section in enumerate(
+            ("material", "bone", "morph", "display", "rigid_body", "joint", "soft_body")
+        ):
+            ttk.Checkbutton(
+                filters,
+                text=SECTION_FILTER_LABELS[section],
+                variable=self.section_vars[section],
+            ).grid(row=0, column=col, sticky="w", padx=(0, 10))
+
+        panes = ttk.PanedWindow(root, orient=tk.VERTICAL)
+        panes.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
+
+        table_frame = ttk.Frame(panes)
+        table_frame.columnconfigure(0, weight=1)
+        table_frame.rowconfigure(0, weight=1)
+        panes.add(table_frame, weight=4)
+
+        columns = ("section", "field", "original", "new")
+        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="browse")
+        self.tree.heading("section", text="Object")
+        self.tree.heading("field", text="Field")
+        self.tree.heading("original", text="Original")
+        self.tree.heading("new", text="New value")
+        self.tree.column("section", width=180, minwidth=120)
+        self.tree.column("field", width=130, minwidth=100)
+        self.tree.column("original", width=360, minwidth=180)
+        self.tree.column("new", width=360, minwidth=180)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        scroll = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        scroll.grid(row=0, column=1, sticky="ns")
+        self.tree.configure(yscrollcommand=scroll.set)
+        self.tree.tag_configure("needs_review", background="#fff2cc")
+        self.tree.bind("<<TreeviewSelect>>", self.on_select)
+
+        editor = ttk.Frame(panes, padding=8)
+        editor.columnconfigure(1, weight=1)
+        panes.add(editor, weight=1)
+
+        ttk.Label(editor, text="Original").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(editor, textvariable=self.original_var, state="readonly").grid(row=0, column=1, sticky="ew")
+        ttk.Label(editor, text="New").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=(8, 0))
+        new_entry = ttk.Entry(editor, textvariable=self.new_value_var)
+        new_entry.grid(row=1, column=1, sticky="ew", pady=(8, 0))
+        ttk.Button(editor, text="Apply Selected", command=self.apply_selected).grid(
+            row=1, column=2, sticky="e", padx=(8, 0), pady=(8, 0)
+        )
+
+        status = ttk.Label(root, textvariable=self.status_var, anchor="w", padding=(8, 0, 8, 8))
+        status.grid(row=3, column=0, sticky="ew")
+
+    def run(self) -> None:
+        self.root.mainloop()
+
+    def open_file(self) -> None:
+        from tkinter import filedialog, messagebox
+
+        filename = filedialog.askopenfilename(filetypes=[("PMX files", "*.pmx"), ("All files", "*.*")])
+        if not filename:
+            return
+        try:
+            path = Path(filename)
+            data = path.read_bytes()
+            entries = parse_pmx(data)
+        except Exception as exc:  # noqa: BLE001 - GUI must report parse failures.
+            messagebox.showerror("Open PMX", str(exc))
+            return
+        self.path = path
+        self.data = data
+        self.entries = entries
+        self.replacements.clear()
+        self.selected_id = None
+        self.refresh_table()
+        self.status_var.set(f"Loaded {path.name}: {len(entries)} text field(s).")
+
+    def refresh_table(self) -> None:
+        self.tree.delete(*self.tree.get_children())
+        for entry in self.entries:
+            if entry.section == "model":
+                continue
+            if entry.field in {"path", "memo"}:
+                continue
+            new_value = self.replacements.get(entry.id, "")
+            tags = ("needs_review",) if has_cjk(new_value or entry.value) else ()
+            self.tree.insert(
+                "",
+                "end",
+                iid=str(entry.id),
+                values=(entry.label, entry.field, entry.value, new_value),
+                tags=tags,
+            )
+
+    def on_select(self, _event: object) -> None:
+        selected = self.tree.selection()
+        if not selected:
+            return
+        self.selected_id = int(selected[0])
+        entry = self.entries[self.selected_id]
+        self.original_var.set(entry.value)
+        self.new_value_var.set(self.replacements.get(entry.id, entry.value))
+
+    def apply_selected(self) -> None:
+        if self.selected_id is None:
+            return
+        value = self.new_value_var.get()
+        entry = self.entries[self.selected_id]
+        if value == entry.value:
+            self.replacements.pop(entry.id, None)
+        else:
+            self.replacements[entry.id] = value
+        self.refresh_table()
+        self.tree.selection_set(str(entry.id))
+        self.status_var.set(f"{len(self.replacements)} pending change(s).")
+
+    def selected_translate_sections(self) -> set[str]:
+        return {section for section, var in self.section_vars.items() if var.get()}
+
+    def auto_translate(self) -> None:
+        if not self.entries or self.is_translating:
+            return
+        translate_sections = self.selected_translate_sections()
+        if not translate_sections:
+            self.status_var.set("Select at least one section to translate.")
+            return
+        self.is_translating = True
+        self.auto_button.configure(state="disabled")
+        self.open_button.configure(state="disabled")
+        self.clear_button.configure(state="disabled")
+        self.save_button.configure(state="disabled")
+        self.status_var.set("Translating...")
+
+        entries_snapshot = list(self.entries)
+        language = self.language_var.get()
+        overwrite_local = self.overwrite_local_var.get()
+        only_empty = self.only_empty_var.get()
+        online_fallback = self.online_fallback_var.get()
+
+        thread = threading.Thread(
+            target=self._auto_translate_worker,
+            args=(entries_snapshot, language, overwrite_local, only_empty, online_fallback, translate_sections),
+            daemon=True,
+        )
+        thread.start()
+
+    def _auto_translate_worker(
+        self,
+        entries: list[TextEntry],
+        language: str,
+        overwrite_local: bool,
+        only_empty: bool,
+        online_fallback: bool,
+        translate_sections: set[str],
+    ) -> None:
+        try:
+            cache = load_translation_cache(DEFAULT_CACHE_PATH) if online_fallback else None
+
+            def report_progress(done: int, total: int) -> None:
+                if total == 0 or done == total or done % 10 == 0:
+                    self.root.after(0, self.status_var.set, f"Translating {done}/{total}...")
+
+            replacements = build_auto_replacements(
+                entries,
+                language,
+                overwrite_local=overwrite_local,
+                only_empty=only_empty,
+                online_fallback=online_fallback,
+                cache=cache,
+                translate_sections=translate_sections,
+                progress_callback=report_progress,
+            )
+            if cache is not None:
+                save_translation_cache(cache, DEFAULT_CACHE_PATH)
+        except Exception as exc:  # noqa: BLE001 - background task reports to UI.
+            self.root.after(0, self._finish_auto_translate, None, exc)
+            return
+        self.root.after(0, self._finish_auto_translate, replacements, None)
+
+    def _finish_auto_translate(self, replacements: dict[int, str] | None, error: Exception | None) -> None:
+        self.is_translating = False
+        self.auto_button.configure(state="normal")
+        self.open_button.configure(state="normal")
+        self.clear_button.configure(state="normal")
+        self.save_button.configure(state="normal")
+        if error is not None:
+            self.status_var.set(f"Translate failed: {error}")
+            return
+        if replacements:
+            self.replacements.update(replacements)
+        self.refresh_table()
+        needs_review = count_untranslated_cjk(self.replacements)
+        if needs_review:
+            self.status_var.set(f"{len(self.replacements)} pending change(s). {needs_review} still need review.")
+        else:
+            self.status_var.set(f"{len(self.replacements)} pending change(s).")
+
+    def clear_changes(self) -> None:
+        self.replacements.clear()
+        self.refresh_table()
+        self.status_var.set("Pending changes cleared.")
+
+    def save_as(self) -> None:
+        from tkinter import filedialog, messagebox
+
+        if self.data is None or self.path is None:
+            return
+        default = self.path.with_name(self.path.stem + f".{self.language_var.get()}.pmx")
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".pmx",
+            initialfile=default.name,
+            filetypes=[("PMX files", "*.pmx"), ("All files", "*.*")],
+        )
+        if not filename:
+            return
+        try:
+            Path(filename).write_bytes(write_replacements(self.data, self.entries, self.replacements))
+        except Exception as exc:  # noqa: BLE001 - GUI must report write failures.
+            messagebox.showerror("Save PMX", str(exc))
+            return
+        self.status_var.set(f"Saved {os.path.basename(filename)} with {len(self.replacements)} change(s).")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Translate PMX object names to English or Vietnamese without accents.")
+    parser.add_argument("input", nargs="?", help="Input .pmx file. Omit to open the GUI.")
+    parser.add_argument("-o", "--output", help="Output .pmx path.")
+    parser.add_argument(
+        "-l",
+        "--language",
+        choices=(LANG_EN, LANG_VI),
+        default=LANG_EN,
+        help="Translation target: en or vi.",
+    )
+    parser.add_argument("--overwrite-local", action="store_true", help="Also rewrite Japanese/local name fields.")
+    parser.add_argument("--only-empty", action="store_true", help="Only fill empty fields.")
+    parser.add_argument(
+        "--sections",
+        default="all",
+        help=(
+            "Comma-separated sections to translate: all, material/objects, bone, morph, "
+            "display, rigid_body, joint, soft_body."
+        ),
+    )
+    parser.add_argument(
+        "--online",
+        action="store_true",
+        help="Use online machine translation only for names that remain untranslated after the local dictionary.",
+    )
+    parser.add_argument(
+        "--source-language",
+        default="auto",
+        help="Source language for online fallback, for example auto, ja, zh-CN or zh-TW.",
+    )
+    parser.add_argument("--cache", help=f"Translation cache JSON path. Default: {DEFAULT_CACHE_PATH}")
+    parser.add_argument("--dry-run", action="store_true", help="Print planned changes without writing a file.")
+    parser.add_argument("--gui", action="store_true", help="Open the GUI.")
+    return parser
+
+
+def main(argv: Iterable[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.gui or not args.input:
+        PmxTranslatorApp().run()
+        return 0
+    try:
+        return run_cli(args)
+    except Exception as exc:  # noqa: BLE001 - CLI should present concise user-facing errors.
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
