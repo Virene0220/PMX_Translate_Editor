@@ -766,11 +766,20 @@ def copy_replaced_textures(
     output_pmx_path: Path,
     entries: list[TextEntry],
     replacements: dict[int, str],
-) -> tuple[int, list[str]]:
+    delete_originals: bool = False,
+) -> tuple[int, int, list[str]]:
     source_base = source_pmx_path.parent
     output_base = output_pmx_path.parent
     copied = 0
+    deleted = 0
     warnings: list[str] = []
+    final_texture_paths = {
+        replacements.get(entry.id, entry.value).replace("\\", "/").lower()
+        for entry in entries
+        if entry.section == "texture" and entry.field == "path"
+    }
+    delete_candidates: dict[Path, str] = {}
+
     for entry in entries:
         if entry.section != "texture" or entry.field != "path" or entry.id not in replacements:
             continue
@@ -786,9 +795,29 @@ def copy_replaced_textures(
             if not dest_file.exists():
                 shutil.copy2(source_file, dest_file)
                 copied += 1
+            if delete_originals and dest_file.exists():
+                old_key = entry.value.replace("\\", "/").lower()
+                if old_key in final_texture_paths:
+                    warnings.append(f"Kept still-referenced texture: {entry.value}")
+                else:
+                    delete_candidates[source_file] = entry.value
         except OSError as exc:
             warnings.append(f"Could not copy {entry.value}: {exc}")
-    return copied, warnings
+
+    if delete_originals:
+        source_base_resolved = source_base.resolve()
+        for source_file, original_path in delete_candidates.items():
+            try:
+                resolved_source = source_file.resolve()
+                if not resolved_source.is_relative_to(source_base_resolved):
+                    warnings.append(f"Kept outside model folder: {original_path}")
+                    continue
+                if resolved_source.exists():
+                    resolved_source.unlink()
+                    deleted += 1
+            except OSError as exc:
+                warnings.append(f"Could not delete {original_path}: {exc}")
+    return copied, deleted, warnings
 
 
 def has_texture_replacements(entries: list[TextEntry], replacements: dict[int, str]) -> bool:
@@ -1018,6 +1047,7 @@ def run_cli(args: argparse.Namespace) -> int:
     cache_path = Path(args.cache) if args.cache else DEFAULT_CACHE_PATH
     cache = load_translation_cache(cache_path) if args.online else None
     translate_sections = parse_section_filter(args.sections)
+    translate_textures = args.translate_textures or args.delete_original_textures
     replacements = build_auto_replacements(
         entries,
         args.language,
@@ -1029,7 +1059,7 @@ def run_cli(args: argparse.Namespace) -> int:
         cache=cache,
         translate_sections=translate_sections,
         sync_name_fields=args.sync_name_fields,
-        translate_textures=args.translate_textures,
+        translate_textures=translate_textures,
     )
     if cache is not None:
         save_translation_cache(cache, cache_path)
@@ -1048,13 +1078,22 @@ def run_cli(args: argparse.Namespace) -> int:
         output_path = Path.cwd() / output_path
     output_path.write_bytes(write_replacements(data, entries, replacements))
     copied = 0
+    deleted = 0
     warnings: list[str] = []
-    if args.translate_textures:
-        copied, warnings = copy_replaced_textures(input_path, output_path, entries, replacements)
+    if translate_textures:
+        copied, deleted, warnings = copy_replaced_textures(
+            input_path,
+            output_path,
+            entries,
+            replacements,
+            delete_originals=args.delete_original_textures,
+        )
     print(f"Wrote {output_path}")
     print(f"Changed {len(replacements)} field(s).")
-    if args.translate_textures:
+    if translate_textures:
         print(f"Copied {copied} texture file(s).")
+        if args.delete_original_textures:
+            print(f"Deleted {deleted} original texture file(s).")
         for warning in warnings:
             print(f"Warning: {warning}")
     return 0
@@ -1081,6 +1120,7 @@ class PmxTranslatorApp:
         self.overwrite_local_var = tk.BooleanVar(value=False)
         self.sync_name_fields_var = tk.BooleanVar(value=False)
         self.translate_textures_var = tk.BooleanVar(value=False)
+        self.delete_original_textures_var = tk.BooleanVar(value=False)
         self.only_empty_var = tk.BooleanVar(value=False)
         self.online_fallback_var = tk.BooleanVar(value=False)
         self.section_vars = {
@@ -1146,8 +1186,14 @@ class PmxTranslatorApp:
             filters,
             text="Copy translated texture files and update PMX paths",
             variable=self.translate_textures_var,
-            command=self.refresh_table,
+            command=self.on_translate_textures_toggle,
         ).grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        ttk.Checkbutton(
+            filters,
+            text="Delete original texture files after successful copy",
+            variable=self.delete_original_textures_var,
+            command=self.on_delete_original_textures_toggle,
+        ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
         panes = ttk.PanedWindow(root, orient=tk.VERTICAL)
         panes.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
@@ -1259,6 +1305,16 @@ class PmxTranslatorApp:
 
     def selected_translate_sections(self) -> set[str]:
         return {section for section, var in self.section_vars.items() if var.get()}
+
+    def on_translate_textures_toggle(self) -> None:
+        if not self.translate_textures_var.get():
+            self.delete_original_textures_var.set(False)
+        self.refresh_table()
+
+    def on_delete_original_textures_toggle(self) -> None:
+        if self.delete_original_textures_var.get():
+            self.translate_textures_var.set(True)
+        self.refresh_table()
 
     def auto_translate(self) -> None:
         if not self.entries or self.is_translating:
@@ -1372,18 +1428,38 @@ class PmxTranslatorApp:
         if not filename:
             return
         output_path = Path(filename)
+        delete_originals = self.delete_original_textures_var.get() and has_texture_replacements(
+            self.entries, self.replacements
+        )
+        if delete_originals:
+            confirmed = messagebox.askyesno(
+                "Delete original textures",
+                "Delete old texture files after they are copied successfully?\n\n"
+                "Files still referenced by the PMX or outside the model folder will be kept.",
+            )
+            if not confirmed:
+                delete_originals = False
         try:
             output_path.write_bytes(write_replacements(self.data, self.entries, self.replacements))
             copied = 0
+            deleted = 0
             warnings: list[str] = []
             if has_texture_replacements(self.entries, self.replacements):
-                copied, warnings = copy_replaced_textures(self.path, output_path, self.entries, self.replacements)
+                copied, deleted, warnings = copy_replaced_textures(
+                    self.path,
+                    output_path,
+                    self.entries,
+                    self.replacements,
+                    delete_originals=delete_originals,
+                )
         except Exception as exc:  # noqa: BLE001 - GUI must report write failures.
             messagebox.showerror("Save PMX", str(exc))
             return
         status = f"Saved {os.path.basename(filename)} with {len(self.replacements)} change(s)."
         if has_texture_replacements(self.entries, self.replacements):
             status += f" Copied {copied} texture file(s)."
+            if delete_originals:
+                status += f" Deleted {deleted} old texture file(s)."
             if warnings:
                 messagebox.showwarning("Texture copy", "\n".join(warnings[:12]))
         self.status_var.set(status)
@@ -1410,6 +1486,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--translate-textures",
         action="store_true",
         help="Translate texture filenames, update PMX texture paths, and copy texture files to the new paths.",
+    )
+    parser.add_argument(
+        "--delete-original-textures",
+        action="store_true",
+        help="After translated textures are copied, delete old texture files that are no longer referenced.",
     )
     parser.add_argument("--only-empty", action="store_true", help="Only fill empty fields.")
     parser.add_argument(

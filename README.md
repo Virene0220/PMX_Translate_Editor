@@ -16,6 +16,12 @@ Trong GUI, bật checkbox:
 Copy translated texture files and update PMX paths
 ```
 
+If you want old texture files removed after the new files are copied, also enable:
+
+```text
+Delete original texture files after successful copy
+```
+
 Khi bật chế độ này, tool sẽ:
 
 1. Dịch tên file texture trong danh sách `texture path` của PMX.
@@ -35,6 +41,12 @@ CLI tương ứng:
 python .\pmx_translate_tool.py "model.pmx" --language en --translate-textures
 ```
 
+To delete old texture files after successful copy:
+
+```powershell
+python .\pmx_translate_tool.py "model.pmx" --language en --translate-textures --delete-original-textures
+```
+
 ### Features
 
 - GUI editor built with Tkinter.
@@ -46,6 +58,7 @@ python .\pmx_translate_tool.py "model.pmx" --language en --translate-textures
 - Section filters for materials, bones, morphs, display frames, rigid bodies, joints, and soft bodies.
 - Optional mode to translate from `local_name` and write the same result to both local and English name fields.
 - Optional texture mode that translates texture filenames, updates PMX texture paths, and copies texture files to the new paths.
+- Optional cleanup mode that deletes old texture files after successful copy when they are no longer referenced.
 - Manual review/editing before saving.
 - Safe default behavior: writes to universal/English name fields unless local name overwrite is enabled.
 
@@ -74,14 +87,16 @@ Basic workflow:
 3. Choose sections in `Translate sections`, such as `Objects/Materials`, `Bones`, or `Morphs`.
 4. Enable `Translate local name and write both fields` if you want the translated local/Japanese/Chinese name to replace both PMX name fields.
 5. Enable `Copy translated texture files and update PMX paths` if you also want texture filenames translated and copied.
-6. Enable `Online fallback` if you want unresolved CJK names to be translated online.
-7. Click `Auto Translate`.
-8. Review and edit rows in the `New` field, then click `Apply Selected`.
-9. Click `Save As` to write a new `.pmx` file.
+6. Enable `Delete original texture files after successful copy` only if you want old texture files removed after the new files are created.
+7. Enable `Online fallback` if you want unresolved CJK names to be translated online.
+8. Click `Auto Translate`.
+9. Review and edit rows in the `New` field, then click `Apply Selected`.
+10. Click `Save As` to write a new `.pmx` file.
 
 By default, the tool writes only to universal/English PMX name fields. Enable `Overwrite local names` only if you also want to replace local/Japanese name fields.
 Use `Translate local name and write both fields` when you want both `local_name` and `universal_name` to receive the same translated value from the original local name.
 Texture mode copies files instead of renaming/deleting originals, so the original model folder stays intact.
+The delete-original option is separate and only removes old texture files that are no longer referenced by the PMX.
 
 ### Run the CLI
 
@@ -125,6 +140,12 @@ Translate texture filenames, copy texture files, and update PMX texture paths:
 
 ```powershell
 python .\pmx_translate_tool.py "model.pmx" --language en --translate-textures
+```
+
+Delete old texture files after successful copy:
+
+```powershell
+python .\pmx_translate_tool.py "model.pmx" --language en --translate-textures --delete-original-textures
 ```
 
 Translate only materials/objects:
