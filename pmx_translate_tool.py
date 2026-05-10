@@ -727,8 +727,20 @@ def build_auto_replacements(
     source_language: str = "auto",
     cache: dict[str, str] | None = None,
     translate_sections: set[str] | None = None,
+    sync_name_fields: bool = False,
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> dict[int, str]:
+    if sync_name_fields:
+        return build_synced_name_replacements(
+            entries,
+            language,
+            online_fallback=online_fallback,
+            source_language=source_language,
+            cache=cache,
+            translate_sections=translate_sections,
+            progress_callback=progress_callback,
+        )
+
     replacements: dict[int, str] = {}
     candidates = [
         entry
@@ -754,6 +766,62 @@ def build_auto_replacements(
             translated_sources[source] = translated
         if translated != entry.value:
             replacements[entry.id] = translated
+        if progress_callback is not None:
+            progress_callback(index, total)
+    return replacements
+
+
+def build_synced_name_replacements(
+    entries: list[TextEntry],
+    language: str,
+    online_fallback: bool = False,
+    source_language: str = "auto",
+    cache: dict[str, str] | None = None,
+    translate_sections: set[str] | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> dict[int, str]:
+    pairs: dict[tuple[str, int], dict[str, TextEntry]] = {}
+    for entry in entries:
+        if entry.section == "model":
+            continue
+        if translate_sections is not None and entry.section not in translate_sections:
+            continue
+        if entry.field not in {"local_name", "universal_name"}:
+            continue
+        pairs.setdefault((entry.section, entry.index), {})[entry.field] = entry
+
+    replacements: dict[int, str] = {}
+    translated_sources: dict[str, str] = {}
+    items = list(pairs.values())
+    total = len(items)
+    for index, pair in enumerate(items, start=1):
+        local_entry = pair.get("local_name")
+        universal_entry = pair.get("universal_name")
+        source = ""
+        if local_entry is not None and local_entry.value.strip():
+            source = local_entry.value
+        elif universal_entry is not None:
+            source = universal_entry.value
+        if not source.strip():
+            if progress_callback is not None:
+                progress_callback(index, total)
+            continue
+
+        if source in translated_sources:
+            translated = translated_sources[source]
+        else:
+            translated = translate_name_with_optional_online(
+                source,
+                language,
+                online_fallback=online_fallback,
+                source_language=source_language,
+                cache=cache,
+            )
+            translated_sources[source] = translated
+
+        for entry in (local_entry, universal_entry):
+            if entry is not None and translated != entry.value:
+                replacements[entry.id] = translated
         if progress_callback is not None:
             progress_callback(index, total)
     return replacements
@@ -820,6 +888,7 @@ def run_cli(args: argparse.Namespace) -> int:
         source_language=args.source_language,
         cache=cache,
         translate_sections=translate_sections,
+        sync_name_fields=args.sync_name_fields,
     )
     if cache is not None:
         save_translation_cache(cache, cache_path)
@@ -859,6 +928,7 @@ class PmxTranslatorApp:
 
         self.language_var = tk.StringVar(value=LANG_EN)
         self.overwrite_local_var = tk.BooleanVar(value=False)
+        self.sync_name_fields_var = tk.BooleanVar(value=False)
         self.only_empty_var = tk.BooleanVar(value=False)
         self.online_fallback_var = tk.BooleanVar(value=False)
         self.section_vars = {
@@ -915,6 +985,11 @@ class PmxTranslatorApp:
                 text=SECTION_FILTER_LABELS[section],
                 variable=self.section_vars[section],
             ).grid(row=0, column=col, sticky="w", padx=(0, 10))
+        ttk.Checkbutton(
+            filters,
+            text="Translate local name and write both fields",
+            variable=self.sync_name_fields_var,
+        ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
         panes = ttk.PanedWindow(root, orient=tk.VERTICAL)
         panes.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
@@ -1040,12 +1115,21 @@ class PmxTranslatorApp:
         entries_snapshot = list(self.entries)
         language = self.language_var.get()
         overwrite_local = self.overwrite_local_var.get()
+        sync_name_fields = self.sync_name_fields_var.get()
         only_empty = self.only_empty_var.get()
         online_fallback = self.online_fallback_var.get()
 
         thread = threading.Thread(
             target=self._auto_translate_worker,
-            args=(entries_snapshot, language, overwrite_local, only_empty, online_fallback, translate_sections),
+            args=(
+                entries_snapshot,
+                language,
+                overwrite_local,
+                sync_name_fields,
+                only_empty,
+                online_fallback,
+                translate_sections,
+            ),
             daemon=True,
         )
         thread.start()
@@ -1055,6 +1139,7 @@ class PmxTranslatorApp:
         entries: list[TextEntry],
         language: str,
         overwrite_local: bool,
+        sync_name_fields: bool,
         only_empty: bool,
         online_fallback: bool,
         translate_sections: set[str],
@@ -1074,6 +1159,7 @@ class PmxTranslatorApp:
                 online_fallback=online_fallback,
                 cache=cache,
                 translate_sections=translate_sections,
+                sync_name_fields=sync_name_fields,
                 progress_callback=report_progress,
             )
             if cache is not None:
@@ -1139,6 +1225,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Translation target: en or vi.",
     )
     parser.add_argument("--overwrite-local", action="store_true", help="Also rewrite Japanese/local name fields.")
+    parser.add_argument(
+        "--sync-name-fields",
+        action="store_true",
+        help="Translate from local_name and write the same result to both local_name and universal_name.",
+    )
     parser.add_argument("--only-empty", action="store_true", help="Only fill empty fields.")
     parser.add_argument(
         "--sections",

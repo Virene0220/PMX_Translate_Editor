@@ -15,6 +15,7 @@ The tool only rewrites PMX text strings. It does not modify meshes, materials se
 - Optional online fallback for names that still contain CJK characters after offline translation.
 - Translation cache stored in `translation_cache.json`.
 - Section filters for materials, bones, morphs, display frames, rigid bodies, joints, and soft bodies.
+- Optional mode to translate from `local_name` and write the same result to both local and English name fields.
 - Manual review/editing before saving.
 - Safe default behavior: writes to universal/English name fields unless local name overwrite is enabled.
 
@@ -41,12 +42,14 @@ Basic workflow:
 1. Click `Open PMX` and choose a model or stage file.
 2. Select the target language: `en` or `vi`.
 3. Choose sections in `Translate sections`, such as `Objects/Materials`, `Bones`, or `Morphs`.
-4. Enable `Online fallback` if you want unresolved CJK names to be translated online.
-5. Click `Auto Translate`.
-6. Review and edit rows in the `New` field, then click `Apply Selected`.
-7. Click `Save As` to write a new `.pmx` file.
+4. Enable `Translate local name and write both fields` if you want the translated local/Japanese/Chinese name to replace both PMX name fields.
+5. Enable `Online fallback` if you want unresolved CJK names to be translated online.
+6. Click `Auto Translate`.
+7. Review and edit rows in the `New` field, then click `Apply Selected`.
+8. Click `Save As` to write a new `.pmx` file.
 
 By default, the tool writes only to universal/English PMX name fields. Enable `Overwrite local names` only if you also want to replace local/Japanese name fields.
+Use `Translate local name and write both fields` when you want both `local_name` and `universal_name` to receive the same translated value from the original local name.
 
 ### Run the CLI
 
@@ -78,6 +81,12 @@ Also rewrite local/Japanese fields:
 
 ```powershell
 python .\pmx_translate_tool.py "model.pmx" --language vi --overwrite-local
+```
+
+Translate from local/Japanese/Chinese names and write the same English result to both name fields:
+
+```powershell
+python .\pmx_translate_tool.py "model.pmx" --language en --sync-name-fields
 ```
 
 Translate only materials/objects:
