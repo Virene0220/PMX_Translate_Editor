@@ -2,9 +2,38 @@
 
 ## English
 
-PMX Translate Editor is a small Windows-friendly tool for editing and translating text fields inside MMD/PMX model files. It is designed for PMX Editor workflows where Japanese or Chinese object names need to be converted to English or unaccented Vietnamese.
+PMX Translate Editor is a small Windows-friendly tool for editing and translating text fields inside MMD/PMX model files. It is designed for PMX Editor workflows where Japanese or Chinese object names, texture filenames, or texture paths need to be converted to English or unaccented Vietnamese.
 
-The tool only rewrites PMX text strings. It does not modify meshes, materials settings, bones transforms, morph data, rigid bodies, joints, physics, textures, or other binary model data.
+The tool only rewrites PMX text strings and can optionally copy texture files to translated filenames. It does not modify meshes, materials settings, bones transforms, morph data, rigid bodies, joints, physics, image pixels, or other binary model data.
+
+## Ghi chú nhanh về Texture
+
+Tool có chế độ dịch tên texture và đường dẫn texture trong PMX.
+
+Trong GUI, bật checkbox:
+
+```text
+Copy translated texture files and update PMX paths
+```
+
+Khi bật chế độ này, tool sẽ:
+
+1. Dịch tên file texture trong danh sách `texture path` của PMX.
+2. Cập nhật đường dẫn texture trong file PMX mới.
+3. Copy file texture gốc sang tên mới.
+4. Không xóa hoặc rename file texture gốc.
+
+Ví dụ:
+
+```text
+tex/床.png -> tex/floor.png
+```
+
+CLI tương ứng:
+
+```powershell
+python .\pmx_translate_tool.py "model.pmx" --language en --translate-textures
+```
 
 ### Features
 
@@ -16,6 +45,7 @@ The tool only rewrites PMX text strings. It does not modify meshes, materials se
 - Translation cache stored in `translation_cache.json`.
 - Section filters for materials, bones, morphs, display frames, rigid bodies, joints, and soft bodies.
 - Optional mode to translate from `local_name` and write the same result to both local and English name fields.
+- Optional texture mode that translates texture filenames, updates PMX texture paths, and copies texture files to the new paths.
 - Manual review/editing before saving.
 - Safe default behavior: writes to universal/English name fields unless local name overwrite is enabled.
 
@@ -43,13 +73,15 @@ Basic workflow:
 2. Select the target language: `en` or `vi`.
 3. Choose sections in `Translate sections`, such as `Objects/Materials`, `Bones`, or `Morphs`.
 4. Enable `Translate local name and write both fields` if you want the translated local/Japanese/Chinese name to replace both PMX name fields.
-5. Enable `Online fallback` if you want unresolved CJK names to be translated online.
-6. Click `Auto Translate`.
-7. Review and edit rows in the `New` field, then click `Apply Selected`.
-8. Click `Save As` to write a new `.pmx` file.
+5. Enable `Copy translated texture files and update PMX paths` if you also want texture filenames translated and copied.
+6. Enable `Online fallback` if you want unresolved CJK names to be translated online.
+7. Click `Auto Translate`.
+8. Review and edit rows in the `New` field, then click `Apply Selected`.
+9. Click `Save As` to write a new `.pmx` file.
 
 By default, the tool writes only to universal/English PMX name fields. Enable `Overwrite local names` only if you also want to replace local/Japanese name fields.
 Use `Translate local name and write both fields` when you want both `local_name` and `universal_name` to receive the same translated value from the original local name.
+Texture mode copies files instead of renaming/deleting originals, so the original model folder stays intact.
 
 ### Run the CLI
 
@@ -87,6 +119,12 @@ Translate from local/Japanese/Chinese names and write the same English result to
 
 ```powershell
 python .\pmx_translate_tool.py "model.pmx" --language en --sync-name-fields
+```
+
+Translate texture filenames, copy texture files, and update PMX texture paths:
+
+```powershell
+python .\pmx_translate_tool.py "model.pmx" --language en --translate-textures
 ```
 
 Translate only materials/objects:

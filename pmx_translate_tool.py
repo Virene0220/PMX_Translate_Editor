@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import struct
 import sys
 import threading
@@ -185,29 +186,6 @@ COMMON_TRANSLATIONS_VI = {
     "morph": "morph",
     "texture": "texture",
 }
-
-COMMON_TRANSLATIONS_VI.update(
-    {
-        "curbstone": "da via",
-        "curb stone": "da via",
-        "bridge": "cau",
-        "bridge deck": "mat cau",
-        "bridge deck ornament": "hoa tiet mat cau",
-        "bridge stone pillar": "cot da cau",
-        "bridge stone curb": "vien da cau",
-        "bridge stone steps": "bac da cau",
-        "bridge stone lion": "su tu da cau",
-        "stone": "da",
-        "stone pillar": "cot da",
-        "stone carving": "tuong da",
-        "curb": "vien",
-        "steps": "bac thang",
-        "lion": "su tu",
-        "ornament": "hoa tiet",
-        "carving": "cham khac",
-    }
-)
-
 
 SECTION_LABELS = {
     "model": "Model info",
@@ -680,6 +658,146 @@ def translate_name_with_optional_online(
     return machine or translated
 
 
+def sanitize_filename_stem(text: str) -> str:
+    text = normalize_ascii_spacing(text)
+    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', " ", text)
+    text = re.sub(r"\s+", "_", text).strip(" ._")
+    return text or "texture"
+
+
+def split_pmx_texture_path(path: str) -> tuple[str, str, str]:
+    separator = "\\" if "\\" in path and "/" not in path else "/"
+    normalized = path.replace("\\", "/")
+    directory, sep, filename = normalized.rpartition("/")
+    if not sep:
+        return "", filename, separator
+    return directory, filename, separator
+
+
+def join_pmx_texture_path(directory: str, filename: str, separator: str) -> str:
+    if not directory:
+        return filename
+    return directory.replace("/", separator) + separator + filename
+
+
+def translated_texture_path(
+    texture_path: str,
+    language: str,
+    online_fallback: bool = False,
+    source_language: str = "auto",
+    cache: dict[str, str] | None = None,
+) -> str:
+    directory, filename, separator = split_pmx_texture_path(texture_path)
+    if not filename or filename in {".", ".."}:
+        return texture_path
+    stem, extension = os.path.splitext(filename)
+    if not stem:
+        return texture_path
+    translated = translate_name_with_optional_online(
+        stem,
+        language,
+        online_fallback=online_fallback,
+        source_language=source_language,
+        cache=cache,
+    )
+    new_filename = sanitize_filename_stem(translated) + extension.lower()
+    return join_pmx_texture_path(directory, new_filename, separator)
+
+
+def uniquify_texture_paths(paths_by_id: dict[int, str]) -> dict[int, str]:
+    used: set[str] = set()
+    unique: dict[int, str] = {}
+    for entry_id, path in paths_by_id.items():
+        key = path.replace("\\", "/").lower()
+        if key not in used:
+            used.add(key)
+            unique[entry_id] = path
+            continue
+        directory, filename, separator = split_pmx_texture_path(path)
+        stem, extension = os.path.splitext(filename)
+        counter = 2
+        while True:
+            candidate = join_pmx_texture_path(directory, f"{stem}_{counter}{extension}", separator)
+            candidate_key = candidate.replace("\\", "/").lower()
+            if candidate_key not in used:
+                used.add(candidate_key)
+                unique[entry_id] = candidate
+                break
+            counter += 1
+    return unique
+
+
+def build_texture_path_replacements(
+    entries: list[TextEntry],
+    language: str,
+    online_fallback: bool = False,
+    source_language: str = "auto",
+    cache: dict[str, str] | None = None,
+) -> dict[int, str]:
+    proposed: dict[int, str] = {}
+    for entry in entries:
+        if entry.section != "texture" or entry.field != "path":
+            continue
+        path = entry.value.strip()
+        if not path:
+            continue
+        new_path = translated_texture_path(
+            path,
+            language,
+            online_fallback=online_fallback,
+            source_language=source_language,
+            cache=cache,
+        )
+        if new_path != entry.value:
+            proposed[entry.id] = new_path
+    return uniquify_texture_paths(proposed)
+
+
+def resolve_texture_file(base_dir: Path, pmx_texture_path: str) -> Path:
+    normalized = pmx_texture_path.replace("\\", os.sep).replace("/", os.sep)
+    path = Path(normalized)
+    if path.is_absolute():
+        return path
+    return base_dir / path
+
+
+def copy_replaced_textures(
+    source_pmx_path: Path,
+    output_pmx_path: Path,
+    entries: list[TextEntry],
+    replacements: dict[int, str],
+) -> tuple[int, list[str]]:
+    source_base = source_pmx_path.parent
+    output_base = output_pmx_path.parent
+    copied = 0
+    warnings: list[str] = []
+    for entry in entries:
+        if entry.section != "texture" or entry.field != "path" or entry.id not in replacements:
+            continue
+        source_file = resolve_texture_file(source_base, entry.value)
+        dest_file = resolve_texture_file(output_base, replacements[entry.id])
+        if source_file == dest_file:
+            continue
+        if not source_file.exists():
+            warnings.append(f"Missing texture: {entry.value}")
+            continue
+        try:
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            if not dest_file.exists():
+                shutil.copy2(source_file, dest_file)
+                copied += 1
+        except OSError as exc:
+            warnings.append(f"Could not copy {entry.value}: {exc}")
+    return copied, warnings
+
+
+def has_texture_replacements(entries: list[TextEntry], replacements: dict[int, str]) -> bool:
+    return any(
+        entry.section == "texture" and entry.field == "path" and entry.id in replacements
+        for entry in entries
+    )
+
+
 def should_translate_entry(
     entry: TextEntry,
     include_comments: bool,
@@ -728,10 +846,11 @@ def build_auto_replacements(
     cache: dict[str, str] | None = None,
     translate_sections: set[str] | None = None,
     sync_name_fields: bool = False,
+    translate_textures: bool = False,
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> dict[int, str]:
     if sync_name_fields:
-        return build_synced_name_replacements(
+        replacements = build_synced_name_replacements(
             entries,
             language,
             online_fallback=online_fallback,
@@ -740,6 +859,17 @@ def build_auto_replacements(
             translate_sections=translate_sections,
             progress_callback=progress_callback,
         )
+        if translate_textures:
+            replacements.update(
+                build_texture_path_replacements(
+                    entries,
+                    language,
+                    online_fallback=online_fallback,
+                    source_language=source_language,
+                    cache=cache,
+                )
+            )
+        return replacements
 
     replacements: dict[int, str] = {}
     candidates = [
@@ -768,6 +898,16 @@ def build_auto_replacements(
             replacements[entry.id] = translated
         if progress_callback is not None:
             progress_callback(index, total)
+    if translate_textures:
+        replacements.update(
+            build_texture_path_replacements(
+                entries,
+                language,
+                online_fallback=online_fallback,
+                source_language=source_language,
+                cache=cache,
+            )
+        )
     return replacements
 
 
@@ -889,6 +1029,7 @@ def run_cli(args: argparse.Namespace) -> int:
         cache=cache,
         translate_sections=translate_sections,
         sync_name_fields=args.sync_name_fields,
+        translate_textures=args.translate_textures,
     )
     if cache is not None:
         save_translation_cache(cache, cache_path)
@@ -903,9 +1044,19 @@ def run_cli(args: argparse.Namespace) -> int:
         return 0
 
     output_path = Path(args.output) if args.output else input_path.with_name(input_path.stem + f".{args.language}.pmx")
+    if not output_path.is_absolute():
+        output_path = Path.cwd() / output_path
     output_path.write_bytes(write_replacements(data, entries, replacements))
+    copied = 0
+    warnings: list[str] = []
+    if args.translate_textures:
+        copied, warnings = copy_replaced_textures(input_path, output_path, entries, replacements)
     print(f"Wrote {output_path}")
     print(f"Changed {len(replacements)} field(s).")
+    if args.translate_textures:
+        print(f"Copied {copied} texture file(s).")
+        for warning in warnings:
+            print(f"Warning: {warning}")
     return 0
 
 
@@ -929,6 +1080,7 @@ class PmxTranslatorApp:
         self.language_var = tk.StringVar(value=LANG_EN)
         self.overwrite_local_var = tk.BooleanVar(value=False)
         self.sync_name_fields_var = tk.BooleanVar(value=False)
+        self.translate_textures_var = tk.BooleanVar(value=False)
         self.only_empty_var = tk.BooleanVar(value=False)
         self.online_fallback_var = tk.BooleanVar(value=False)
         self.section_vars = {
@@ -990,6 +1142,12 @@ class PmxTranslatorApp:
             text="Translate local name and write both fields",
             variable=self.sync_name_fields_var,
         ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        ttk.Checkbutton(
+            filters,
+            text="Copy translated texture files and update PMX paths",
+            variable=self.translate_textures_var,
+            command=self.refresh_table,
+        ).grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
         panes = ttk.PanedWindow(root, orient=tk.VERTICAL)
         panes.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
@@ -1061,7 +1219,11 @@ class PmxTranslatorApp:
         for entry in self.entries:
             if entry.section == "model":
                 continue
-            if entry.field in {"path", "memo"}:
+            if entry.field == "memo":
+                continue
+            if entry.field == "path" and not (
+                entry.section == "texture" and (self.translate_textures_var.get() or entry.id in self.replacements)
+            ):
                 continue
             new_value = self.replacements.get(entry.id, "")
             tags = ("needs_review",) if has_cjk(new_value or entry.value) else ()
@@ -1102,8 +1264,9 @@ class PmxTranslatorApp:
         if not self.entries or self.is_translating:
             return
         translate_sections = self.selected_translate_sections()
-        if not translate_sections:
-            self.status_var.set("Select at least one section to translate.")
+        translate_textures = self.translate_textures_var.get()
+        if not translate_sections and not translate_textures:
+            self.status_var.set("Select at least one section or texture translation.")
             return
         self.is_translating = True
         self.auto_button.configure(state="disabled")
@@ -1126,6 +1289,7 @@ class PmxTranslatorApp:
                 language,
                 overwrite_local,
                 sync_name_fields,
+                translate_textures,
                 only_empty,
                 online_fallback,
                 translate_sections,
@@ -1140,6 +1304,7 @@ class PmxTranslatorApp:
         language: str,
         overwrite_local: bool,
         sync_name_fields: bool,
+        translate_textures: bool,
         only_empty: bool,
         online_fallback: bool,
         translate_sections: set[str],
@@ -1160,6 +1325,7 @@ class PmxTranslatorApp:
                 cache=cache,
                 translate_sections=translate_sections,
                 sync_name_fields=sync_name_fields,
+                translate_textures=translate_textures,
                 progress_callback=report_progress,
             )
             if cache is not None:
@@ -1205,12 +1371,22 @@ class PmxTranslatorApp:
         )
         if not filename:
             return
+        output_path = Path(filename)
         try:
-            Path(filename).write_bytes(write_replacements(self.data, self.entries, self.replacements))
+            output_path.write_bytes(write_replacements(self.data, self.entries, self.replacements))
+            copied = 0
+            warnings: list[str] = []
+            if has_texture_replacements(self.entries, self.replacements):
+                copied, warnings = copy_replaced_textures(self.path, output_path, self.entries, self.replacements)
         except Exception as exc:  # noqa: BLE001 - GUI must report write failures.
             messagebox.showerror("Save PMX", str(exc))
             return
-        self.status_var.set(f"Saved {os.path.basename(filename)} with {len(self.replacements)} change(s).")
+        status = f"Saved {os.path.basename(filename)} with {len(self.replacements)} change(s)."
+        if has_texture_replacements(self.entries, self.replacements):
+            status += f" Copied {copied} texture file(s)."
+            if warnings:
+                messagebox.showwarning("Texture copy", "\n".join(warnings[:12]))
+        self.status_var.set(status)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1229,6 +1405,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--sync-name-fields",
         action="store_true",
         help="Translate from local_name and write the same result to both local_name and universal_name.",
+    )
+    parser.add_argument(
+        "--translate-textures",
+        action="store_true",
+        help="Translate texture filenames, update PMX texture paths, and copy texture files to the new paths.",
     )
     parser.add_argument("--only-empty", action="store_true", help="Only fill empty fields.")
     parser.add_argument(
