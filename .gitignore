@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+build/
+dist/
+translation_cache.json
+*.log
+*.tmp
+*.bak

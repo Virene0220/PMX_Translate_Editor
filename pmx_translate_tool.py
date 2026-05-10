@@ -27,6 +27,8 @@ from typing import Callable, Iterable
 LANG_EN = "en"
 LANG_VI = "vi"
 DEFAULT_CACHE_PATH = Path(__file__).with_name("translation_cache.json")
+APP_ICON_ICO = "app_icon.ico"
+APP_ICON_PNG = "app_icon.png"
 
 
 COMMON_TRANSLATIONS_EN = {
@@ -217,6 +219,173 @@ SECTION_FILTER_LABELS = {
     "rigid_body": "Rigid bodies",
     "joint": "Joints",
     "soft_body": "Soft bodies",
+}
+
+UI_LANGUAGE_NAMES = {
+    "en": "English",
+    "vi": "Tiếng Việt",
+    "ru": "Русский",
+}
+
+UI_LANGUAGE_CODES = {name: code for code, name in UI_LANGUAGE_NAMES.items()}
+
+UI_TEXT = {
+    "en": {
+        "title": "PMX Translate Editor",
+        "open_pmx": "Open PMX",
+        "ui": "UI",
+        "target": "Target",
+        "overwrite_local": "Overwrite local names",
+        "only_empty": "Only empty fields",
+        "online_fallback": "Online fallback",
+        "auto_translate": "Auto Translate",
+        "clear_changes": "Clear Changes",
+        "save_as": "Save As",
+        "translate_sections": "Translate sections",
+        "section_material": "Objects/Materials",
+        "section_bone": "Bones",
+        "section_morph": "Morphs",
+        "section_display": "Display",
+        "section_rigid_body": "Rigid bodies",
+        "section_joint": "Joints",
+        "section_soft_body": "Soft bodies",
+        "sync_name_fields": "Translate local name and write both fields",
+        "translate_textures": "Copy translated texture files and update PMX paths",
+        "delete_original_textures": "Delete original texture files after successful copy",
+        "column_object": "Object",
+        "column_field": "Field",
+        "column_original": "Original",
+        "column_new": "New value",
+        "original": "Original",
+        "new": "New",
+        "apply_selected": "Apply Selected",
+        "ready": "Open a PMX file to start.",
+        "loaded": "Loaded {name}: {count} text field(s).",
+        "pending": "{count} pending change(s).",
+        "pending_review": "{count} pending change(s). {review} still need review.",
+        "select_section": "Select at least one section or texture translation.",
+        "translating": "Translating...",
+        "translating_progress": "Translating {done}/{total}...",
+        "translate_failed": "Translate failed: {error}",
+        "cleared": "Pending changes cleared.",
+        "saved": "Saved {name} with {count} change(s).",
+        "copied": " Copied {count} texture file(s).",
+        "deleted": " Deleted {count} old texture file(s).",
+        "delete_title": "Delete original textures",
+        "delete_confirm": (
+            "Delete old texture files after they are copied successfully?\n\n"
+            "Files still referenced by the PMX or outside the model folder will be kept."
+        ),
+        "open_error": "Open PMX",
+        "save_error": "Save PMX",
+        "texture_copy": "Texture copy",
+        "pmx_files": "PMX files",
+        "all_files": "All files",
+    },
+    "vi": {
+        "title": "PMX Translate Editor",
+        "open_pmx": "Mở PMX",
+        "ui": "Ngôn ngữ",
+        "target": "Dịch sang ngôn ngữ",
+        "overwrite_local": "Ghi đè tên local",
+        "only_empty": "Chỉ điền ô trống",
+        "online_fallback": "Dịch từ điển online",
+        "auto_translate": "Tự động dịch",
+        "clear_changes": "Xóa thay đổi",
+        "save_as": "Lưu tại",
+        "translate_sections": "Nhóm cần dịch",
+        "section_material": "Object/Material",
+        "section_bone": "Bone",
+        "section_morph": "Morph",
+        "section_display": "Khung hiển thị",
+        "section_rigid_body": "Rigid body",
+        "section_joint": "Joint",
+        "section_soft_body": "Soft body",
+        "sync_name_fields": "Dịch tên local và ghi vào cả hai ô tên",
+        "translate_textures": "Copy texture đã dịch và cập nhật path PMX",
+        "delete_original_textures": "Xóa texture gốc sau khi copy thành công",
+        "column_object": "Đối tượng",
+        "column_field": "Trường",
+        "column_original": "Gốc",
+        "column_new": "Giá trị mới",
+        "original": "Gốc",
+        "new": "Mới",
+        "apply_selected": "Áp dụng dòng chọn",
+        "ready": "Mở file PMX để bắt đầu.",
+        "loaded": "Đã mở {name}: {count} trường text.",
+        "pending": "{count} thay đổi đang chờ.",
+        "pending_review": "{count} thay đổi đang chờ. {review} dòng cần kiểm tra.",
+        "select_section": "Hãy chọn ít nhất một nhóm hoặc chế độ dịch texture.",
+        "translating": "Đang dịch...",
+        "translating_progress": "Đang dịch {done}/{total}...",
+        "translate_failed": "Dịch lỗi: {error}",
+        "cleared": "Đã xóa các thay đổi đang chờ.",
+        "saved": "Đã lưu {name} với {count} thay đổi.",
+        "copied": " Đã copy {count} file texture.",
+        "deleted": " Đã xóa {count} file texture cũ.",
+        "delete_title": "Xóa texture gốc",
+        "delete_confirm": (
+            "Xóa các file texture cũ sau khi copy thành công?\n\n"
+            "File còn được PMX tham chiếu hoặc nằm ngoài thư mục model sẽ được giữ lại."
+        ),
+        "open_error": "Mở PMX",
+        "save_error": "Lưu PMX",
+        "texture_copy": "Copy texture",
+        "pmx_files": "File PMX",
+        "all_files": "Tất cả file",
+    },
+    "ru": {
+        "title": "PMX Translate Editor",
+        "open_pmx": "Открыть PMX",
+        "ui": "Интерфейс",
+        "target": "Язык перевода",
+        "overwrite_local": "Перезаписать local names",
+        "only_empty": "Только пустые поля",
+        "online_fallback": "Онлайн-перевод при необходимости",
+        "auto_translate": "Автоперевод",
+        "clear_changes": "Очистить изменения",
+        "save_as": "Сохранить как",
+        "translate_sections": "Разделы для перевода",
+        "section_material": "Объекты/Материалы",
+        "section_bone": "Кости",
+        "section_morph": "Морфы",
+        "section_display": "Отображение",
+        "section_rigid_body": "Rigid bodies",
+        "section_joint": "Joints",
+        "section_soft_body": "Soft bodies",
+        "sync_name_fields": "Перевести local name и записать в оба поля",
+        "translate_textures": "Скопировать переведенные текстуры и обновить пути PMX",
+        "delete_original_textures": "Удалить старые текстуры после успешного копирования",
+        "column_object": "Объект",
+        "column_field": "Поле",
+        "column_original": "Исходное",
+        "column_new": "Новое значение",
+        "original": "Исходное",
+        "new": "Новое",
+        "apply_selected": "Применить выбранное",
+        "ready": "Откройте PMX-файл, чтобы начать.",
+        "loaded": "Загружено {name}: {count} текстовых полей.",
+        "pending": "{count} изменений ожидает сохранения.",
+        "pending_review": "{count} изменений ожидает сохранения. {review} требуют проверки.",
+        "select_section": "Выберите хотя бы один раздел или перевод текстур.",
+        "translating": "Перевод...",
+        "translating_progress": "Перевод {done}/{total}...",
+        "translate_failed": "Ошибка перевода: {error}",
+        "cleared": "Ожидающие изменения очищены.",
+        "saved": "Сохранено {name}, изменений: {count}.",
+        "copied": " Скопировано текстур: {count}.",
+        "deleted": " Удалено старых текстур: {count}.",
+        "delete_title": "Удалить старые текстуры",
+        "delete_confirm": (
+            "Удалить старые файлы текстур после успешного копирования?\n\n"
+            "Файлы, которые все еще используются PMX или находятся вне папки модели, будут сохранены."
+        ),
+        "open_error": "Открыть PMX",
+        "save_error": "Сохранить PMX",
+        "texture_copy": "Копирование текстур",
+        "pmx_files": "PMX файлы",
+        "all_files": "Все файлы",
+    },
 }
 
 
@@ -506,6 +675,14 @@ class PmxReader:
 
 def parse_pmx(data: bytes) -> list[TextEntry]:
     return PmxReader(data).parse()
+
+
+def resource_path(name: str) -> Path:
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    bundled = base / name
+    if bundled.exists():
+        return bundled
+    return Path(__file__).resolve().parent / name
 
 
 def write_replacements(data: bytes, entries: list[TextEntry], replacements: dict[int, str]) -> bytes:
@@ -1107,8 +1284,9 @@ class PmxTranslatorApp:
         self.tk = tk
         self.ttk = ttk
         self.root = tk.Tk()
-        self.root.title("PMX Translate Editor")
         self.root.geometry("1080x680")
+        self.icon_photo = None
+        self.configure_app_icon()
         self.data: bytes | None = None
         self.entries: list[TextEntry] = []
         self.replacements: dict[int, str] = {}
@@ -1116,6 +1294,7 @@ class PmxTranslatorApp:
         self.selected_id: int | None = None
         self.is_translating = False
 
+        self.ui_language_var = tk.StringVar(value=UI_LANGUAGE_NAMES["en"])
         self.language_var = tk.StringVar(value=LANG_EN)
         self.overwrite_local_var = tk.BooleanVar(value=False)
         self.sync_name_fields_var = tk.BooleanVar(value=False)
@@ -1127,11 +1306,29 @@ class PmxTranslatorApp:
             section: tk.BooleanVar(value=section in {"material", "bone", "morph"})
             for section in TRANSLATABLE_SECTIONS
         }
-        self.status_var = tk.StringVar(value="Open a PMX file to start.")
+        self.status_var = tk.StringVar(value="")
         self.original_var = tk.StringVar(value="")
         self.new_value_var = tk.StringVar(value="")
+        self.section_checkbuttons: dict[str, object] = {}
 
         self._build_ui()
+        self.apply_ui_language()
+
+    def configure_app_icon(self) -> None:
+        ico_path = resource_path(APP_ICON_ICO)
+        if ico_path.exists():
+            try:
+                self.root.iconbitmap(default=str(ico_path))
+                return
+            except Exception:
+                pass
+        png_path = resource_path(APP_ICON_PNG)
+        if png_path.exists():
+            try:
+                self.icon_photo = self.tk.PhotoImage(file=str(png_path))
+                self.root.iconphoto(True, self.icon_photo)
+            except Exception:
+                self.icon_photo = None
 
     def _build_ui(self) -> None:
         tk = self.tk
@@ -1143,57 +1340,62 @@ class PmxTranslatorApp:
 
         toolbar = ttk.Frame(root, padding=8)
         toolbar.grid(row=0, column=0, sticky="ew")
-        toolbar.columnconfigure(9, weight=1)
+        toolbar.columnconfigure(11, weight=1)
 
-        self.open_button = ttk.Button(toolbar, text="Open PMX", command=self.open_file)
+        self.open_button = ttk.Button(toolbar, command=self.open_file)
         self.open_button.grid(row=0, column=0, padx=(0, 6))
-        ttk.Label(toolbar, text="Target").grid(row=0, column=1, padx=(0, 4))
+        self.ui_label = ttk.Label(toolbar)
+        self.ui_label.grid(row=0, column=1, padx=(0, 4))
+        self.ui_combo = ttk.Combobox(toolbar, textvariable=self.ui_language_var, state="readonly", width=12)
+        self.ui_combo["values"] = tuple(UI_LANGUAGE_NAMES.values())
+        self.ui_combo.grid(row=0, column=2, padx=(0, 8))
+        self.ui_combo.bind("<<ComboboxSelected>>", self.on_ui_language_changed)
+        self.target_label = ttk.Label(toolbar)
+        self.target_label.grid(row=0, column=3, padx=(0, 4))
         lang = ttk.Combobox(toolbar, textvariable=self.language_var, state="readonly", width=22)
         lang["values"] = (LANG_EN, LANG_VI)
-        lang.grid(row=0, column=2, padx=(0, 8))
-        ttk.Checkbutton(toolbar, text="Overwrite local names", variable=self.overwrite_local_var).grid(
-            row=0, column=3, padx=(0, 8)
-        )
-        ttk.Checkbutton(toolbar, text="Only empty fields", variable=self.only_empty_var).grid(
-            row=0, column=4, padx=(0, 8)
-        )
-        ttk.Checkbutton(toolbar, text="Online fallback", variable=self.online_fallback_var).grid(
-            row=0, column=5, padx=(0, 8)
-        )
-        self.auto_button = ttk.Button(toolbar, text="Auto Translate", command=self.auto_translate)
-        self.auto_button.grid(row=0, column=6, padx=(0, 6))
-        self.clear_button = ttk.Button(toolbar, text="Clear Changes", command=self.clear_changes)
-        self.clear_button.grid(row=0, column=7, padx=(0, 6))
-        self.save_button = ttk.Button(toolbar, text="Save As", command=self.save_as)
-        self.save_button.grid(row=0, column=8, padx=(0, 6))
+        lang.grid(row=0, column=4, padx=(0, 8))
+        self.overwrite_local_check = ttk.Checkbutton(toolbar, variable=self.overwrite_local_var)
+        self.overwrite_local_check.grid(row=0, column=5, padx=(0, 8))
+        self.only_empty_check = ttk.Checkbutton(toolbar, variable=self.only_empty_var)
+        self.only_empty_check.grid(row=0, column=6, padx=(0, 8))
+        self.online_fallback_check = ttk.Checkbutton(toolbar, variable=self.online_fallback_var)
+        self.online_fallback_check.grid(row=0, column=7, padx=(0, 8))
+        self.auto_button = ttk.Button(toolbar, command=self.auto_translate)
+        self.auto_button.grid(row=0, column=8, padx=(0, 6))
+        self.clear_button = ttk.Button(toolbar, command=self.clear_changes)
+        self.clear_button.grid(row=0, column=9, padx=(0, 6))
+        self.save_button = ttk.Button(toolbar, command=self.save_as)
+        self.save_button.grid(row=0, column=10, padx=(0, 6))
 
-        filters = ttk.LabelFrame(root, text="Translate sections", padding=(8, 4, 8, 8))
-        filters.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 8))
+        self.filters = ttk.LabelFrame(root, padding=(8, 4, 8, 8))
+        self.filters.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 8))
         for col, section in enumerate(
             ("material", "bone", "morph", "display", "rigid_body", "joint", "soft_body")
         ):
-            ttk.Checkbutton(
-                filters,
-                text=SECTION_FILTER_LABELS[section],
+            checkbutton = ttk.Checkbutton(
+                self.filters,
                 variable=self.section_vars[section],
-            ).grid(row=0, column=col, sticky="w", padx=(0, 10))
-        ttk.Checkbutton(
-            filters,
-            text="Translate local name and write both fields",
+            )
+            checkbutton.grid(row=0, column=col, sticky="w", padx=(0, 10))
+            self.section_checkbuttons[section] = checkbutton
+        self.sync_name_fields_check = ttk.Checkbutton(
+            self.filters,
             variable=self.sync_name_fields_var,
-        ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(6, 0))
-        ttk.Checkbutton(
-            filters,
-            text="Copy translated texture files and update PMX paths",
+        )
+        self.sync_name_fields_check.grid(row=1, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        self.translate_textures_check = ttk.Checkbutton(
+            self.filters,
             variable=self.translate_textures_var,
             command=self.on_translate_textures_toggle,
-        ).grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
-        ttk.Checkbutton(
-            filters,
-            text="Delete original texture files after successful copy",
+        )
+        self.translate_textures_check.grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        self.delete_original_textures_check = ttk.Checkbutton(
+            self.filters,
             variable=self.delete_original_textures_var,
             command=self.on_delete_original_textures_toggle,
-        ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        )
+        self.delete_original_textures_check.grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
         panes = ttk.PanedWindow(root, orient=tk.VERTICAL)
         panes.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
@@ -1205,10 +1407,6 @@ class PmxTranslatorApp:
 
         columns = ("section", "field", "original", "new")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="browse")
-        self.tree.heading("section", text="Object")
-        self.tree.heading("field", text="Field")
-        self.tree.heading("original", text="Original")
-        self.tree.heading("new", text="New value")
         self.tree.column("section", width=180, minwidth=120)
         self.tree.column("field", width=130, minwidth=100)
         self.tree.column("original", width=360, minwidth=180)
@@ -1224,14 +1422,15 @@ class PmxTranslatorApp:
         editor.columnconfigure(1, weight=1)
         panes.add(editor, weight=1)
 
-        ttk.Label(editor, text="Original").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self.original_label = ttk.Label(editor)
+        self.original_label.grid(row=0, column=0, sticky="w", padx=(0, 8))
         ttk.Entry(editor, textvariable=self.original_var, state="readonly").grid(row=0, column=1, sticky="ew")
-        ttk.Label(editor, text="New").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=(8, 0))
+        self.new_label = ttk.Label(editor)
+        self.new_label.grid(row=1, column=0, sticky="w", padx=(0, 8), pady=(8, 0))
         new_entry = ttk.Entry(editor, textvariable=self.new_value_var)
         new_entry.grid(row=1, column=1, sticky="ew", pady=(8, 0))
-        ttk.Button(editor, text="Apply Selected", command=self.apply_selected).grid(
-            row=1, column=2, sticky="e", padx=(8, 0), pady=(8, 0)
-        )
+        self.apply_button = ttk.Button(editor, command=self.apply_selected)
+        self.apply_button.grid(row=1, column=2, sticky="e", padx=(8, 0), pady=(8, 0))
 
         status = ttk.Label(root, textvariable=self.status_var, anchor="w", padding=(8, 0, 8, 8))
         status.grid(row=3, column=0, sticky="ew")
@@ -1239,10 +1438,81 @@ class PmxTranslatorApp:
     def run(self) -> None:
         self.root.mainloop()
 
+    def ui_language(self) -> str:
+        return UI_LANGUAGE_CODES.get(self.ui_language_var.get(), "en")
+
+    def tr(self, key: str, **kwargs: object) -> str:
+        text = UI_TEXT.get(self.ui_language(), UI_TEXT["en"]).get(key, UI_TEXT["en"].get(key, key))
+        return text.format(**kwargs) if kwargs else text
+
+    def section_label(self, section: str) -> str:
+        return self.tr(f"section_{section}")
+
+    def entry_label(self, entry: TextEntry) -> str:
+        if entry.section == "texture":
+            label = SECTION_LABELS["texture"]
+        elif entry.section in TRANSLATABLE_SECTIONS:
+            label = self.section_label(entry.section)
+        else:
+            label = SECTION_LABELS.get(entry.section, entry.section)
+        if entry.index >= 0:
+            return f"{label} #{entry.index}"
+        return label
+
+    def on_ui_language_changed(self, _event: object | None = None) -> None:
+        self.apply_ui_language()
+        self.refresh_table()
+
+    def apply_ui_language(self) -> None:
+        self.root.title(self.tr("title"))
+        self.open_button.configure(text=self.tr("open_pmx"))
+        self.ui_label.configure(text=self.tr("ui"))
+        self.target_label.configure(text=self.tr("target"))
+        self.overwrite_local_check.configure(text=self.tr("overwrite_local"))
+        self.only_empty_check.configure(text=self.tr("only_empty"))
+        self.online_fallback_check.configure(text=self.tr("online_fallback"))
+        self.auto_button.configure(text=self.tr("auto_translate"))
+        self.clear_button.configure(text=self.tr("clear_changes"))
+        self.save_button.configure(text=self.tr("save_as"))
+        self.filters.configure(text=self.tr("translate_sections"))
+        for section, checkbutton in self.section_checkbuttons.items():
+            checkbutton.configure(text=self.section_label(section))
+        self.sync_name_fields_check.configure(text=self.tr("sync_name_fields"))
+        self.translate_textures_check.configure(text=self.tr("translate_textures"))
+        self.delete_original_textures_check.configure(text=self.tr("delete_original_textures"))
+        self.tree.heading("section", text=self.tr("column_object"))
+        self.tree.heading("field", text=self.tr("column_field"))
+        self.tree.heading("original", text=self.tr("column_original"))
+        self.tree.heading("new", text=self.tr("column_new"))
+        self.original_label.configure(text=self.tr("original"))
+        self.new_label.configure(text=self.tr("new"))
+        self.apply_button.configure(text=self.tr("apply_selected"))
+        if not self.entries:
+            self.status_var.set(self.tr("ready"))
+        self.autoscale_window_to_content()
+
+    def autoscale_window_to_content(self) -> None:
+        self.root.update_idletasks()
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        max_width = max(900, screen_width - 80)
+        max_height = max(600, screen_height - 120)
+        requested_width = self.root.winfo_reqwidth() + 36
+        requested_height = self.root.winfo_reqheight() + 36
+        target_width = min(max(1080, requested_width), max_width)
+        target_height = min(max(680, requested_height), max_height)
+        self.root.minsize(min(target_width, max_width), min(target_height, max_height))
+        current_width = self.root.winfo_width()
+        current_height = self.root.winfo_height()
+        if current_width < target_width or current_height < target_height:
+            self.root.geometry(f"{max(current_width, target_width)}x{max(current_height, target_height)}")
+
     def open_file(self) -> None:
         from tkinter import filedialog, messagebox
 
-        filename = filedialog.askopenfilename(filetypes=[("PMX files", "*.pmx"), ("All files", "*.*")])
+        filename = filedialog.askopenfilename(
+            filetypes=[(self.tr("pmx_files"), "*.pmx"), (self.tr("all_files"), "*.*")]
+        )
         if not filename:
             return
         try:
@@ -1250,7 +1520,7 @@ class PmxTranslatorApp:
             data = path.read_bytes()
             entries = parse_pmx(data)
         except Exception as exc:  # noqa: BLE001 - GUI must report parse failures.
-            messagebox.showerror("Open PMX", str(exc))
+            messagebox.showerror(self.tr("open_error"), str(exc))
             return
         self.path = path
         self.data = data
@@ -1258,7 +1528,7 @@ class PmxTranslatorApp:
         self.replacements.clear()
         self.selected_id = None
         self.refresh_table()
-        self.status_var.set(f"Loaded {path.name}: {len(entries)} text field(s).")
+        self.status_var.set(self.tr("loaded", name=path.name, count=len(entries)))
 
     def refresh_table(self) -> None:
         self.tree.delete(*self.tree.get_children())
@@ -1277,7 +1547,7 @@ class PmxTranslatorApp:
                 "",
                 "end",
                 iid=str(entry.id),
-                values=(entry.label, entry.field, entry.value, new_value),
+                values=(self.entry_label(entry), entry.field, entry.value, new_value),
                 tags=tags,
             )
 
@@ -1301,7 +1571,7 @@ class PmxTranslatorApp:
             self.replacements[entry.id] = value
         self.refresh_table()
         self.tree.selection_set(str(entry.id))
-        self.status_var.set(f"{len(self.replacements)} pending change(s).")
+        self.status_var.set(self.tr("pending", count=len(self.replacements)))
 
     def selected_translate_sections(self) -> set[str]:
         return {section for section, var in self.section_vars.items() if var.get()}
@@ -1322,14 +1592,14 @@ class PmxTranslatorApp:
         translate_sections = self.selected_translate_sections()
         translate_textures = self.translate_textures_var.get()
         if not translate_sections and not translate_textures:
-            self.status_var.set("Select at least one section or texture translation.")
+            self.status_var.set(self.tr("select_section"))
             return
         self.is_translating = True
         self.auto_button.configure(state="disabled")
         self.open_button.configure(state="disabled")
         self.clear_button.configure(state="disabled")
         self.save_button.configure(state="disabled")
-        self.status_var.set("Translating...")
+        self.status_var.set(self.tr("translating"))
 
         entries_snapshot = list(self.entries)
         language = self.language_var.get()
@@ -1370,7 +1640,7 @@ class PmxTranslatorApp:
 
             def report_progress(done: int, total: int) -> None:
                 if total == 0 or done == total or done % 10 == 0:
-                    self.root.after(0, self.status_var.set, f"Translating {done}/{total}...")
+                    self.root.after(0, self.status_var.set, self.tr("translating_progress", done=done, total=total))
 
             replacements = build_auto_replacements(
                 entries,
@@ -1398,21 +1668,21 @@ class PmxTranslatorApp:
         self.clear_button.configure(state="normal")
         self.save_button.configure(state="normal")
         if error is not None:
-            self.status_var.set(f"Translate failed: {error}")
+            self.status_var.set(self.tr("translate_failed", error=error))
             return
         if replacements:
             self.replacements.update(replacements)
         self.refresh_table()
         needs_review = count_untranslated_cjk(self.replacements)
         if needs_review:
-            self.status_var.set(f"{len(self.replacements)} pending change(s). {needs_review} still need review.")
+            self.status_var.set(self.tr("pending_review", count=len(self.replacements), review=needs_review))
         else:
-            self.status_var.set(f"{len(self.replacements)} pending change(s).")
+            self.status_var.set(self.tr("pending", count=len(self.replacements)))
 
     def clear_changes(self) -> None:
         self.replacements.clear()
         self.refresh_table()
-        self.status_var.set("Pending changes cleared.")
+        self.status_var.set(self.tr("cleared"))
 
     def save_as(self) -> None:
         from tkinter import filedialog, messagebox
@@ -1423,7 +1693,7 @@ class PmxTranslatorApp:
         filename = filedialog.asksaveasfilename(
             defaultextension=".pmx",
             initialfile=default.name,
-            filetypes=[("PMX files", "*.pmx"), ("All files", "*.*")],
+            filetypes=[(self.tr("pmx_files"), "*.pmx"), (self.tr("all_files"), "*.*")],
         )
         if not filename:
             return
@@ -1433,9 +1703,8 @@ class PmxTranslatorApp:
         )
         if delete_originals:
             confirmed = messagebox.askyesno(
-                "Delete original textures",
-                "Delete old texture files after they are copied successfully?\n\n"
-                "Files still referenced by the PMX or outside the model folder will be kept.",
+                self.tr("delete_title"),
+                self.tr("delete_confirm"),
             )
             if not confirmed:
                 delete_originals = False
@@ -1453,15 +1722,15 @@ class PmxTranslatorApp:
                     delete_originals=delete_originals,
                 )
         except Exception as exc:  # noqa: BLE001 - GUI must report write failures.
-            messagebox.showerror("Save PMX", str(exc))
+            messagebox.showerror(self.tr("save_error"), str(exc))
             return
-        status = f"Saved {os.path.basename(filename)} with {len(self.replacements)} change(s)."
+        status = self.tr("saved", name=os.path.basename(filename), count=len(self.replacements))
         if has_texture_replacements(self.entries, self.replacements):
-            status += f" Copied {copied} texture file(s)."
+            status += self.tr("copied", count=copied)
             if delete_originals:
-                status += f" Deleted {deleted} old texture file(s)."
+                status += self.tr("deleted", count=deleted)
             if warnings:
-                messagebox.showwarning("Texture copy", "\n".join(warnings[:12]))
+                messagebox.showwarning(self.tr("texture_copy"), "\n".join(warnings[:12]))
         self.status_var.set(status)
 
 
