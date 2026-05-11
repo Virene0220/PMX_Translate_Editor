@@ -2,7 +2,7 @@
 
 PMX Translate Editor is a Windows-friendly tool for translating PMX text fields used by MMD/PMX Editor models and stages.
 
-It can translate object/material names, bones, morphs, display frames, physics names, and PMX texture paths from Japanese or Chinese to English or Vietnamese without accents. It rewrites PMX text strings only. It does not modify mesh data, material parameters, bones transforms, morph data, physics data, or image pixels.
+It can translate object/material names, bones, morphs, and PMX texture paths from Japanese or Chinese to English or Vietnamese without accents. It rewrites PMX text strings only. It does not modify mesh data, material parameters, bones transforms, morph data, physics data, or image pixels.
 
 ## Download
 
@@ -22,7 +22,7 @@ No Python installation is required for the packaged `.exe`.
 - Target languages: English (`en`) and Vietnamese without accents (`vi`).
 - Offline dictionary for common MMD/PMX terms.
 - Optional online fallback for unresolved CJK text.
-- Section filters for materials, bones, morphs, display frames, rigid bodies, joints, and soft bodies.
+- Section filters for materials, bones, and morphs. Display frames, rigid bodies, joints, and soft bodies are temporarily disabled.
 - Optional mode to write the same translated value to both `local_name` and `universal_name`.
 - Optional texture mode to translate texture filenames, update PMX texture paths, and copy texture files.
 - Optional cleanup mode to delete old texture files after successful copy when they are no longer referenced.
@@ -150,6 +150,8 @@ Valid section values:
 ```text
 all, material, objects, bone, morph, display, rigid_body, joint, soft_body
 ```
+
+`display`, `rigid_body`, `joint`, and `soft_body` are accepted for compatibility but are temporarily disabled in this version.
 
 Use online fallback:
 

@@ -211,6 +211,15 @@ TRANSLATABLE_SECTIONS = {
     "soft_body",
 }
 
+DISABLED_TRANSLATION_SECTIONS = {
+    "display",
+    "rigid_body",
+    "joint",
+    "soft_body",
+}
+
+DEFAULT_TRANSLATION_SECTIONS = TRANSLATABLE_SECTIONS - DISABLED_TRANSLATION_SECTIONS
+
 SECTION_FILTER_LABELS = {
     "material": "Objects/Materials",
     "bone": "Bones",
@@ -1012,6 +1021,8 @@ def should_translate_entry(
 ) -> bool:
     if entry.section == "model":
         return False
+    if entry.section in DISABLED_TRANSLATION_SECTIONS:
+        return False
     if translate_sections is not None and entry.section not in translate_sections:
         return False
     if "comment" in entry.field:
@@ -1129,6 +1140,8 @@ def build_synced_name_replacements(
     pairs: dict[tuple[str, int], dict[str, TextEntry]] = {}
     for entry in entries:
         if entry.section == "model":
+            continue
+        if entry.section in DISABLED_TRANSLATION_SECTIONS:
             continue
         if translate_sections is not None and entry.section not in translate_sections:
             continue
@@ -1303,7 +1316,7 @@ class PmxTranslatorApp:
         self.only_empty_var = tk.BooleanVar(value=False)
         self.online_fallback_var = tk.BooleanVar(value=False)
         self.section_vars = {
-            section: tk.BooleanVar(value=section in {"material", "bone", "morph"})
+            section: tk.BooleanVar(value=section in DEFAULT_TRANSLATION_SECTIONS)
             for section in TRANSLATABLE_SECTIONS
         }
         self.status_var = tk.StringVar(value="")
@@ -1377,6 +1390,9 @@ class PmxTranslatorApp:
                 self.filters,
                 variable=self.section_vars[section],
             )
+            if section in DISABLED_TRANSLATION_SECTIONS:
+                self.section_vars[section].set(False)
+                checkbutton.configure(state="disabled")
             checkbutton.grid(row=0, column=col, sticky="w", padx=(0, 10))
             self.section_checkbuttons[section] = checkbutton
         self.sync_name_fields_check = ttk.Checkbutton(
@@ -1574,7 +1590,11 @@ class PmxTranslatorApp:
         self.status_var.set(self.tr("pending", count=len(self.replacements)))
 
     def selected_translate_sections(self) -> set[str]:
-        return {section for section, var in self.section_vars.items() if var.get()}
+        return {
+            section
+            for section, var in self.section_vars.items()
+            if var.get() and section not in DISABLED_TRANSLATION_SECTIONS
+        }
 
     def on_translate_textures_toggle(self) -> None:
         if not self.translate_textures_var.get():
@@ -1766,8 +1786,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--sections",
         default="all",
         help=(
-            "Comma-separated sections to translate: all, material/objects, bone, morph, "
-            "display, rigid_body, joint, soft_body."
+            "Comma-separated sections to translate: all, material/objects, bone, morph. "
+            "Display, rigid_body, joint, and soft_body are temporarily disabled."
         ),
     )
     parser.add_argument(
