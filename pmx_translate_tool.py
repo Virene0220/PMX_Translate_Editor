@@ -220,6 +220,16 @@ DISABLED_TRANSLATION_SECTIONS = {
 
 DEFAULT_TRANSLATION_SECTIONS = TRANSLATABLE_SECTIONS - DISABLED_TRANSLATION_SECTIONS
 
+MOTION_NAME_SECTIONS = {
+    "bone",
+    "morph",
+}
+
+
+def is_motion_local_name(entry: "TextEntry") -> bool:
+    return entry.section in MOTION_NAME_SECTIONS and entry.field == "local_name"
+
+
 SECTION_FILTER_LABELS = {
     "material": "Objects/Materials",
     "bone": "Bones",
@@ -700,6 +710,8 @@ def write_replacements(data: bytes, entries: list[TextEntry], replacements: dict
     for entry in sorted(entries, key=lambda item: item.offset):
         if entry.id not in replacements:
             continue
+        if is_motion_local_name(entry):
+            continue
         new_value = replacements[entry.id]
         encoded = new_value.encode(entry.encoding)
         chunks.append(data[cursor : entry.offset])
@@ -1029,6 +1041,8 @@ def should_translate_entry(
         return include_comments
     if entry.section == "texture":
         return False
+    if is_motion_local_name(entry):
+        return False
     if entry.field == "local_name" and not overwrite_local:
         return False
     if entry.field in {"memo", "path"}:
@@ -1178,7 +1192,10 @@ def build_synced_name_replacements(
             )
             translated_sources[source] = translated
 
-        for entry in (local_entry, universal_entry):
+        target_entries = [universal_entry]
+        if local_entry is not None and not is_motion_local_name(local_entry):
+            target_entries.append(local_entry)
+        for entry in target_entries:
             if entry is not None and translated != entry.value:
                 replacements[entry.id] = translated
         if progress_callback is not None:
@@ -1581,6 +1598,12 @@ class PmxTranslatorApp:
             return
         value = self.new_value_var.get()
         entry = self.entries[self.selected_id]
+        if is_motion_local_name(entry):
+            self.replacements.pop(entry.id, None)
+            self.refresh_table()
+            self.tree.selection_set(str(entry.id))
+            self.status_var.set(self.tr("pending", count=len(self.replacements)))
+            return
         if value == entry.value:
             self.replacements.pop(entry.id, None)
         else:

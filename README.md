@@ -51,14 +51,14 @@ universal_name  receives the translated name
 
 `Overwrite local names` allows the tool to also rewrite `local_name`.
 
-`Translate local name and write both fields` uses `local_name` as the source and writes the same translated value to both fields:
+`Translate local name and write both fields` uses `local_name` as the source and writes the same translated value to both fields for sections that do not drive motion:
 
 ```text
 local_name      translated value
 universal_name  translated value
 ```
 
-Use this when you want to remove Chinese/Japanese names from both PMX name fields.
+For MMD/VMD compatibility, bone and morph `local_name` fields are always preserved, including manual edits in the table. Motions usually match bones and morphs by their original local names.
 
 ## Texture Mode
 
